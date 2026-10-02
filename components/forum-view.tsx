@@ -3,13 +3,13 @@
 import { useState } from 'react'
 import {
   Bell, Bookmark, ChevronDown, ChevronRight, FileText, Hash, ImagePlus,
-  LayoutGrid, LogOut, Menu, MessageCircle, MoreHorizontal, Search, Send, Share2,
+  LogOut, Menu, MessageCircle, MoreHorizontal, Search, Send, Share2,
   ShieldCheck, Sparkles, ThumbsDown, ThumbsUp, TrendingUp, Upload, X, User
 } from 'lucide-react'
 import { UserProfile } from './login-view'
 
 const initialCategories = [
-  'Tecnologías de la Información', 'Biotecnología', 'Gastronomía', 'Mecatrónica',
+  'TI', 'Biotecnología', 'Mercadotecnia', 'Gastronomía',
   'Convocatorias', 'Preguntas Frecuentes',
 ]
 
@@ -35,7 +35,7 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
 
   const [threads, setThreads] = useState([
     {
-      id: 1, author: 'Mariana López', initials: 'ML', career: 'TI', time: 'hace 2h', category: 'Tecnologías de la Información',
+      id: 1, author: 'Mariana López', initials: 'ML', career: 'TI', time: 'hace 2h', category: 'TI',
       title: '¿Alguien ya tomó la materia de Desarrollo Web?',
       body: 'Estoy armando mi horario para el próximo cuatrimestre y me gustaría conocer su experiencia con la materia. ¿Qué proyectos hacen y qué tan pesada es la carga?',
       score: 38, replies: 14, accent: 'bg-emerald-100 text-emerald-700',
@@ -45,12 +45,12 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
       ],
     },
     {
-      id: 2, author: 'Carlos Méndez', initials: 'CM', career: 'MEC', time: 'hace 4h', category: 'Convocatorias',
-      title: 'Hackathon UTOM 2025: equipos y registro',
-      body: 'Ya está abierta la convocatoria para el Hackathon UTOM. Busco dos personas interesadas en IoT y diseño de interfaces. El registro cierra este viernes.',
+      id: 2, author: 'Carlos Méndez', initials: 'CM', career: 'MKT', time: 'hace 4h', category: 'Mercadotecnia',
+      title: 'Campaña y pitch para el Hackathon UTOM 2025',
+      body: 'Buscamos integrar al equipo a compañeros de Mercadotecnia y diseño para la estrategia de difusión y pitch comercial. El registro cierra este viernes.',
       score: 72, replies: 21, accent: 'bg-blue-100 text-blue-700',
       comments: [
-        { author: 'Ana Torres', initials: 'AT', text: 'Me interesa la parte de interfaces, ¿todavía tienen espacio?' }
+        { author: 'Ana Torres', initials: 'AT', text: '¡Me interesa colaborar en la propuesta de valor y presentación!' }
       ],
     },
     {
@@ -59,6 +59,15 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
       body: 'Subí mis apuntes y una guía de estudio que nos compartió la maestra. Ojalá les sirva para repasar antes del examen del jueves.',
       score: 54, replies: 9, accent: 'bg-violet-100 text-violet-700',
       comments: [],
+    },
+    {
+      id: 4, author: 'Rodrigo Morales', initials: 'RM', career: 'GAST', time: 'ayer', category: 'Gastronomía',
+      title: 'Muestra gastronómica regional UTOM: bases y registro',
+      body: 'Comparto las bases para participar en la muestra de cocina tradicional del próximo mes. Pueden registrar equipos de hasta 3 alumnos.',
+      score: 46, replies: 8, accent: 'bg-amber-100 text-amber-700',
+      comments: [
+        { author: 'Paola Vega', initials: 'PV', text: '¿En qué cocina-taller se realizarán las prácticas previas?' }
+      ],
     },
   ])
 
@@ -76,7 +85,7 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
 
     const careerAccentMap: Record<string, string> = {
       'TI': 'bg-emerald-100 text-emerald-700',
-      'MEC': 'bg-blue-100 text-blue-700',
+      'MKT': 'bg-blue-100 text-blue-700',
       'BIO': 'bg-violet-100 text-violet-700',
       'GAST': 'bg-amber-100 text-amber-700'
     }
@@ -153,18 +162,12 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
             <Menu />
           </button>
 
-          <div className="flex items-center gap-2.5 min-w-fit">
-            <div className="flex size-9 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm shadow-emerald-600/20">
-              <LayoutGrid size={18} />
-            </div>
-            <div>
-              <div className="text-lg font-bold tracking-tight text-slate-900">
-                Wiki <span className="text-emerald-600">UTOM</span>
-              </div>
-              <div className="hidden text-[10px] font-semibold uppercase tracking-[.18em] text-slate-400 sm:block">
-                Comunidad estudiantil
-              </div>
-            </div>
+          <div className="flex items-center min-w-fit">
+            <img
+              src="/media/logo.webp"
+              alt="UTOM"
+              className="h-9 sm:h-10 w-auto object-contain"
+            />
           </div>
 
           <div className="relative hidden max-w-md flex-1 lg:block">
@@ -314,8 +317,8 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
                       [
                         'bg-emerald-500',
                         'bg-violet-500',
-                        'bg-orange-400',
                         'bg-blue-500',
+                        'bg-amber-500',
                         'bg-pink-500',
                         'bg-slate-400'
                       ][index]

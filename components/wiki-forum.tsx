@@ -15,13 +15,13 @@ import { Bell, Bookmark, ChevronDown, Compass, Copy, FileText, Flame, Globe2, He
 
 const threads = [
   { id: 1, name: 'Mariana López', initials: 'ML', career: 'TI', time: 'hace 2h', title: '¿Alguien tiene el horario actualizado de laboratorios?', body: 'Estoy armando mi horario para el siguiente cuatrimestre y no encuentro el PDF de laboratorios. ¿Ya lo publicaron en algún grupo?', category: 'Tecnologías de la Información', score: 38, replies: 14, tags: ['#Horarios', '#TI'], color: 'bg-amber-100 text-amber-700' },
-  { id: 2, name: 'Diego Ramírez', initials: 'DR', career: 'MEC', time: 'hace 4h', title: 'Tips para conseguir residencia en una startup', body: 'Comparto algunos aprendizajes de mis primeras entrevistas: lleven un proyecto demo, investiguen el stack y pregunten por el plan de acompañamiento. ¿Qué empresas les han funcionado?', category: 'Convocatorias', score: 72, replies: 26, tags: ['#Residencias', '#Consejos'], color: 'bg-sky-100 text-sky-700' },
+  { id: 2, name: 'Diego Ramírez', initials: 'DR', career: 'MKT', time: 'hace 4h', title: 'Tips para conseguir residencia en una startup', body: 'Comparto algunos aprendizajes de mis primeras entrevistas: lleven un proyecto demo, investiguen el stack y pregunten por el plan de acompañamiento. ¿Qué empresas les han funcionado?', category: 'Convocatorias', score: 72, replies: 26, tags: ['#Residencias', '#Consejos'], color: 'bg-sky-100 text-sky-700' },
   { id: 3, name: 'Sofía Hernández', initials: 'SH', career: 'BIO', time: 'ayer', title: 'Material de estudio: bioinformática y Python', body: 'Dejo una pequeña colección de apuntes y ejercicios para quienes están por entrar a la materia. Si ven algún error, avísenme para corregirlo.', category: 'Biotecnología', score: 119, replies: 31, tags: ['#Material', '#Python'], color: 'bg-emerald-100 text-emerald-700' },
 ]
 
-const categories = ['Tecnologías de la Información', 'Biotecnología', 'Gastronomía', 'Mecatrónica', 'Convocatorias', 'Preguntas Frecuentes']
+const categories = ['TI', 'Biotecnología', 'Mercadotecnia', 'Gastronomía', 'Convocatorias', 'Preguntas Frecuentes']
 
-function Logo() { return <div className="flex items-center gap-3"><div className="grid size-10 place-items-center rounded-xl bg-primary text-primary-foreground shadow-sm"><FileText className="size-5" /></div><div><p className="font-bold tracking-tight">Wiki UTOM</p><p className="text-[11px] text-muted-foreground">Comunidad estudiantil</p></div></div> }
+function Logo() { return <div className="flex items-center"><img src="/media/logo.webp" alt="UTOM" className="h-9 sm:h-10 w-auto object-contain" /></div> }
 
 function ThreadCard({ thread }: { thread: typeof threads[number] }) {
   const [score, setScore] = useState(thread.score)
