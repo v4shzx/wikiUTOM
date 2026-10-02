@@ -2,7 +2,7 @@
 
 import { useState } from 'react'
 import {
-  LayoutGrid, Mail, Lock, Eye, EyeOff, ArrowRight, ShieldCheck,
+  Mail, Lock, Eye, EyeOff, ArrowRight, ShieldCheck,
   AlertCircle, HelpCircle, X, Loader2, CheckCircle2
 } from 'lucide-react'
 
@@ -53,14 +53,22 @@ export default function LoginView({ onLogin }: LoginViewProps) {
       let initials = 'EU'
       let career = 'TI'
 
-      if (cleanEmail.includes('mariana') || cleanEmail.includes('ml')) {
+      if (cleanEmail.includes('mariana') || cleanEmail.includes('ti')) {
         name = 'Mariana López'
         initials = 'ML'
         career = 'TI'
-      } else if (cleanEmail.includes('carlos') || cleanEmail.includes('cm')) {
+      } else if (cleanEmail.includes('carlos') || cleanEmail.includes('mkt') || cleanEmail.includes('merca')) {
         name = 'Carlos Méndez'
         initials = 'CM'
-        career = 'MEC'
+        career = 'MKT'
+      } else if (cleanEmail.includes('valeria') || cleanEmail.includes('bio')) {
+        name = 'Valeria Núñez'
+        initials = 'VN'
+        career = 'BIO'
+      } else if (cleanEmail.includes('rodrigo') || cleanEmail.includes('gast')) {
+        name = 'Rodrigo Morales'
+        initials = 'RM'
+        career = 'GAST'
       } else {
         const userPart = cleanEmail.split('@')[0]
         name = userPart.charAt(0).toUpperCase() + userPart.slice(1).replace('.', ' ')
@@ -93,21 +101,15 @@ export default function LoginView({ onLogin }: LoginViewProps) {
 
   return (
     <div className="min-h-screen bg-[#f6f8f8] text-slate-900 flex flex-col justify-between selection:bg-emerald-500 selection:text-white">
-      {/* Barra superior con identidad institucional */}
+      {/* Barra superior con identidad institucional y logo */}
       <header className="border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6">
-          <div className="flex items-center gap-2.5">
-            <div className="flex size-9 items-center justify-center rounded-xl bg-emerald-600 text-white shadow-sm shadow-emerald-600/20">
-              <LayoutGrid size={18} />
-            </div>
-            <div>
-              <div className="text-lg font-bold tracking-tight text-slate-900">
-                Wiki <span className="text-emerald-600">UTOM</span>
-              </div>
-              <div className="text-[10px] font-semibold uppercase tracking-[.18em] text-slate-400">
-                Comunidad estudiantil
-              </div>
-            </div>
+          <div className="flex items-center">
+            <img
+              src="/media/logo.webp"
+              alt="UTOM"
+              className="h-9 sm:h-10 w-auto object-contain"
+            />
           </div>
 
           <div className="flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50/80 px-3 py-1 text-xs font-medium text-emerald-800">
@@ -120,13 +122,20 @@ export default function LoginView({ onLogin }: LoginViewProps) {
       {/* Contenedor centralizado para el panel de credenciales */}
       <main className="flex-1 flex items-center justify-center p-4 sm:p-6 my-auto">
         <div className="w-full max-w-md">
-
+          
           {/* Tarjeta de login centrada */}
           <div className="relative rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xl shadow-slate-200/60 overflow-hidden">
             <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-500" />
 
-            {/* Cabecera del formulario */}
+            {/* Cabecera del formulario con el logo oficial */}
             <div className="text-center mb-6">
+              <div className="mx-auto mb-4 flex items-center justify-center">
+                <img
+                  src="/media/logo.webp"
+                  alt="Logo Universidad Tecnológica del Oriente de Michoacán"
+                  className="h-14 sm:h-16 w-auto max-w-[210px] object-contain"
+                />
+              </div>
               <h1 className="text-2xl font-bold tracking-tight text-slate-900">
                 Iniciar sesión
               </h1>
@@ -147,7 +156,7 @@ export default function LoginView({ onLogin }: LoginViewProps) {
             <form onSubmit={handleLogin} className="space-y-4">
               <div>
                 <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                  matrícula
+                  Correo o matrícula
                 </label>
                 <div className="relative">
                   <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
@@ -157,7 +166,7 @@ export default function LoginView({ onLogin }: LoginViewProps) {
                     type="text"
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
-                    placeholder=""
+                    placeholder="usuario@utom.edu.mx o 2023TI0142"
                     className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20"
                     autoComplete="username"
                   />
@@ -244,7 +253,7 @@ export default function LoginView({ onLogin }: LoginViewProps) {
               </span>
             </div>
 
-            {/* Accesos rápidos de prueba */}
+            {/* Accesos rápidos demo por carrera */}
             <div className="grid grid-cols-2 gap-2">
               <button
                 type="button"
@@ -257,13 +266,13 @@ export default function LoginView({ onLogin }: LoginViewProps) {
                     role: 'Estudiante TI'
                   })
                 }
-                className="flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-slate-50/80 p-2.5 text-center transition hover:bg-emerald-50/80 hover:border-emerald-300 cursor-pointer"
+                className="flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-slate-50/80 p-2 text-center transition hover:bg-emerald-50 hover:border-emerald-300 cursor-pointer"
               >
-                <div className="flex size-7 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 text-xs font-bold mb-1">
-                  ML
+                <div className="flex size-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold mb-1">
+                  TI
                 </div>
                 <span className="text-xs font-bold text-slate-800">Mariana López</span>
-                <span className="text-[10px] text-slate-400">TI · 5to</span>
+                <span className="text-[10px] text-emerald-700 font-semibold">TI · 5to</span>
               </button>
 
               <button
@@ -272,18 +281,58 @@ export default function LoginView({ onLogin }: LoginViewProps) {
                   handleQuickDemo({
                     name: 'Carlos Méndez',
                     initials: 'CM',
-                    career: 'MEC',
+                    career: 'MKT',
                     email: 'carlos.mendez@utom.edu.mx',
-                    role: 'Estudiante MEC'
+                    role: 'Estudiante MKT'
                   })
                 }
-                className="flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-slate-50/80 p-2.5 text-center transition hover:bg-blue-50/80 hover:border-blue-300 cursor-pointer"
+                className="flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-slate-50/80 p-2 text-center transition hover:bg-blue-50 hover:border-blue-300 cursor-pointer"
               >
-                <div className="flex size-7 items-center justify-center rounded-full bg-blue-100 text-blue-800 text-xs font-bold mb-1">
-                  CM
+                <div className="flex size-6 items-center justify-center rounded-full bg-blue-100 text-blue-800 text-[11px] font-bold mb-1">
+                  MK
                 </div>
                 <span className="text-xs font-bold text-slate-800">Carlos Méndez</span>
-                <span className="text-[10px] text-slate-400">Mecatrónica · 7mo</span>
+                <span className="text-[10px] text-blue-700 font-semibold">Mercadotecnia · 7mo</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  handleQuickDemo({
+                    name: 'Valeria Núñez',
+                    initials: 'VN',
+                    career: 'BIO',
+                    email: 'valeria.nunez@utom.edu.mx',
+                    role: 'Estudiante BIO'
+                  })
+                }
+                className="flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-slate-50/80 p-2 text-center transition hover:bg-violet-50 hover:border-violet-300 cursor-pointer"
+              >
+                <div className="flex size-6 items-center justify-center rounded-full bg-violet-100 text-violet-800 text-[11px] font-bold mb-1">
+                  BI
+                </div>
+                <span className="text-xs font-bold text-slate-800">Valeria Núñez</span>
+                <span className="text-[10px] text-violet-700 font-semibold">Biotecnología · 3ro</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={() =>
+                  handleQuickDemo({
+                    name: 'Rodrigo Morales',
+                    initials: 'RM',
+                    career: 'GAST',
+                    email: 'rodrigo.morales@utom.edu.mx',
+                    role: 'Estudiante GAST'
+                  })
+                }
+                className="flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-slate-50/80 p-2 text-center transition hover:bg-amber-50 hover:border-amber-300 cursor-pointer"
+              >
+                <div className="flex size-6 items-center justify-center rounded-full bg-amber-100 text-amber-800 text-[11px] font-bold mb-1">
+                  GA
+                </div>
+                <span className="text-xs font-bold text-slate-800">Rodrigo Morales</span>
+                <span className="text-[10px] text-amber-700 font-semibold">Gastronomía · 4to</span>
               </button>
             </div>
 
