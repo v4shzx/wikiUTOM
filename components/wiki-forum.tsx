@@ -21,7 +21,7 @@ const threads = [
 
 const categories = ['TI', 'Biotecnología', 'Mercadotecnia', 'Gastronomía', 'Convocatorias', 'Preguntas Frecuentes']
 
-function Logo() { return <div className="flex items-center"><img src="/media/logo.webp" alt="UTOM" className="h-9 sm:h-10 w-auto object-contain" /></div> }
+function Logo() { return <div className="flex items-center"><img src="/media/fontico.webp" alt="UTOM" className="h-9 sm:h-10 w-auto object-contain" /></div> }
 
 function ThreadCard({ thread }: { thread: typeof threads[number] }) {
   const [score, setScore] = useState(thread.score)

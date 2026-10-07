@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import PlexusEffect from '@/components/plexus-effect'
 import {
   Mail, Lock, Eye, EyeOff, ArrowRight, ShieldCheck,
   AlertCircle, HelpCircle, X, Loader2, CheckCircle2
@@ -100,31 +101,22 @@ export default function LoginView({ onLogin }: LoginViewProps) {
   }
 
   return (
-    <div className="min-h-screen bg-[#f6f8f8] text-slate-900 flex flex-col justify-between selection:bg-emerald-500 selection:text-white">
-      {/* Barra superior con identidad institucional y logo */}
-      <header className="border-b border-slate-200 bg-white/95 backdrop-blur">
-        <div className="mx-auto flex h-16 max-w-5xl items-center justify-between px-4 sm:px-6">
-          <div className="flex items-center">
-            <img
-              src="/media/logo.webp"
-              alt="UTOM"
-              className="h-9 sm:h-10 w-auto object-contain"
-            />
-          </div>
+    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-emerald-950 via-emerald-900 to-teal-950 text-slate-900 flex flex-col justify-between selection:bg-emerald-500 selection:text-white">
+      {/* Fondo verde con efecto de partículas Plexus */}
+      <PlexusEffect />
+      <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(16,185,129,0.16),transparent_60%)]" />
+      <div className="pointer-events-none absolute -top-32 left-1/4 size-96 animate-float-slow rounded-full bg-emerald-500/15 blur-3xl" />
+      <div className="pointer-events-none absolute -bottom-24 right-1/4 size-80 animate-float-slow rounded-full bg-teal-400/10 blur-3xl" />
 
-          <div className="flex items-center gap-2 rounded-full border border-emerald-100 bg-emerald-50/80 px-3 py-1 text-xs font-medium text-emerald-800">
-            <span className="size-2 rounded-full bg-emerald-500 animate-pulse" />
-            Portal Institucional
-          </div>
-        </div>
-      </header>
+      {/* Barra superior con identidad institucional y logo */}
+
 
       {/* Contenedor centralizado para el panel de credenciales */}
-      <main className="flex-1 flex items-center justify-center p-4 sm:p-6 my-auto">
+      <main className="relative z-10 flex-1 flex items-center justify-center p-4 sm:p-6 my-auto">
         <div className="w-full max-w-md">
-          
+
           {/* Tarjeta de login centrada */}
-          <div className="relative rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xl shadow-slate-200/60 overflow-hidden">
+          <div className="relative rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xl shadow-emerald-950/40 overflow-hidden">
             <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-500" />
 
             {/* Cabecera del formulario con el logo oficial */}
@@ -346,13 +338,13 @@ export default function LoginView({ onLogin }: LoginViewProps) {
       </main>
 
       {/* Pie de página institucional */}
-      <footer className="border-t border-slate-200 bg-white py-3.5 px-4 text-center text-xs text-slate-400">
+      <footer className="relative z-10 border-t border-emerald-300/10 bg-transparent py-3.5 px-4 text-center text-xs text-emerald-200/60">
         <div className="mx-auto max-w-5xl flex flex-col sm:flex-row items-center justify-between gap-2">
           <span>Universidad Tecnológica del Oriente de Michoacán · Wiki UTOM</span>
           <div className="flex items-center gap-3 text-[11px]">
-            <a href="#rules" className="hover:text-emerald-700">Guía de convivencia</a>
+            <a href="#rules" className="hover:text-emerald-300">Guía de convivencia</a>
             <span>·</span>
-            <a href="#privacy" className="hover:text-emerald-700">Privacidad</a>
+            <a href="#privacy" className="hover:text-emerald-300">Privacidad</a>
           </div>
         </div>
       </footer>

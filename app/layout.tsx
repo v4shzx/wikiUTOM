@@ -1,18 +1,25 @@
 import { Analytics } from '@vercel/analytics/next'
+import { Roboto } from 'next/font/google'
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
+const roboto = Roboto({
+  subsets: ['latin'],
+  weight: ['400', '500', '700', '900'],
+  variable: '--font-roboto',
+})
+
 export const metadata: Metadata = {
-  title: 'Wiki UTOM - Comunidad Estudiantil',
+  title: 'Wiki UTOM',
   description: 'Portal y foro colaborativo para la comunidad estudiantil de la Universidad Tecnológica del Oriente de Michoacán.',
   generator: 'v0.app',
   icons: {
     icon: [
       {
-        url: '/media/logo.webp',
+        url: '/media/fontico.webp',
       },
     ],
-    apple: '/media/logo.webp',
+    apple: '/media/fontico.webp',
   },
 }
 
@@ -30,7 +37,7 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="es">
+    <html lang="es" className={roboto.variable}>
       <body className="antialiased">
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}

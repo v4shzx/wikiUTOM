@@ -164,7 +164,7 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
 
           <div className="flex items-center min-w-fit">
             <img
-              src="/media/logo.webp"
+              src="/media/fontico.webp"
               alt="UTOM"
               className="h-9 sm:h-10 w-auto object-contain"
             />
