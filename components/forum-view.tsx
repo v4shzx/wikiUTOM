@@ -170,20 +170,7 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
             />
           </div>
 
-          <div className="relative hidden max-w-md flex-1 lg:block">
-            <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
-            <input
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="h-10 w-full rounded-xl border border-slate-200 bg-slate-50 pl-10 pr-16 text-sm outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20"
-              placeholder="Buscar en hilos, materias, avisos..."
-            />
-            <kbd className="absolute right-3 top-2 rounded bg-white px-1.5 py-0.5 text-[10px] text-slate-400 shadow-sm border border-slate-200">
-              ⌘ K
-            </kbd>
-          </div>
-
-          <nav className="hidden items-center gap-6 text-sm font-medium text-slate-500 xl:flex">
+          <nav className="hidden items-center gap-6 text-sm font-medium text-slate-500 md:flex ml-4">
             <a className="text-emerald-700 font-semibold" href="#feed">Feed</a>
             <a href="#categories" className="hover:text-slate-900 transition">Carreras</a>
             <a href="#notices" className="hover:text-slate-900 transition">Avisos oficiales</a>
@@ -253,15 +240,6 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
         {/* Mobile menu */}
         {mobileMenu && (
           <div className="border-t border-slate-100 px-5 py-3 text-sm lg:hidden bg-white">
-            <div className="relative mb-3">
-              <Search className="absolute left-3 top-2.5 text-slate-400" size={18} />
-              <input
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="h-10 w-full rounded-xl border border-slate-200 pl-10 pr-3 text-sm"
-                placeholder="Buscar en Wiki UTOM"
-              />
-            </div>
             <div className="flex flex-col gap-2 font-medium">
               <a href="#feed" className="py-1 text-emerald-700 font-semibold">Feed</a>
               <a href="#categories" className="py-1 text-slate-700">Carreras</a>
@@ -289,7 +267,7 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
       </header>
 
       {/* Main body */}
-      <main className="mx-auto grid max-w-[1440px] grid-cols-1 gap-6 px-4 py-6 lg:grid-cols-[220px_minmax(0,1fr)_280px] lg:px-8">
+      <main className="mx-auto grid max-w-[1440px] grid-cols-1 gap-6 px-4 py-6 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1fr)_280px] lg:px-8">
         
         {/* Left Sidebar */}
         <aside id="categories" className="hidden lg:block">
@@ -421,7 +399,7 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
                       {thread.initials}
                     </div>
                     <div className="min-w-0 flex-1">
-                      <div className="flex items-center gap-2">
+                      <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                         <span className="text-sm font-bold text-slate-900">{thread.author}</span>
                         <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${thread.accent}`}>
                           {thread.career}

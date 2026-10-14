@@ -101,7 +101,7 @@ export default function LoginView({ onLogin }: LoginViewProps) {
   }
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-gradient-to-br from-emerald-950 via-emerald-900 to-teal-950 text-slate-900 flex flex-col justify-between selection:bg-emerald-500 selection:text-white">
+    <div className="relative min-h-screen min-h-[100dvh] overflow-x-hidden overflow-y-auto bg-gradient-to-br from-emerald-950 via-emerald-900 to-teal-950 text-slate-900 flex flex-col justify-between selection:bg-emerald-500 selection:text-white">
       {/* Fondo verde con efecto de partículas Plexus */}
       <PlexusEffect />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(16,185,129,0.16),transparent_60%)]" />
