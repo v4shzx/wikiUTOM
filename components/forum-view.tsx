@@ -2,10 +2,11 @@
 
 import { useState } from 'react'
 import {
-  Bell, Bookmark, ChevronDown, ChevronRight, FileText, GraduationCap, Hash,
-  Home, ImagePlus, LogOut, Megaphone, Menu, MessageCircle, MoreHorizontal,
-  Search, Send, Share2, ShieldCheck, Sparkles, ThumbsDown, ThumbsUp,
-  TrendingUp, Upload, X, User
+  ArrowLeft, Bell, Bookmark, Check, ChevronDown, ChevronRight, FileText,
+  GraduationCap, Hash, Home, ImagePlus, LogOut, Megaphone, Menu,
+  MessageCircle, MoreHorizontal, Save, Search, Send, Settings, Share2,
+  ShieldCheck, Sliders, Sparkles, ThumbsDown, ThumbsUp, TrendingUp, Upload,
+  X, User
 } from 'lucide-react'
 import { UserProfile } from './login-view'
 
@@ -27,6 +28,17 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
   const [modal, setModal] = useState(false)
   const [mobileMenu, setMobileMenu] = useState(false)
   const [userDropdown, setUserDropdown] = useState(false)
+  const [currentView, setCurrentView] = useState<'feed' | 'settings'>('feed')
+
+  // Settings view state
+  const [settingsName, setSettingsName] = useState(user.name)
+  const [settingsCareer, setSettingsCareer] = useState(user.career)
+  const [settingsBio, setSettingsBio] = useState('Estudiante activo en la comunidad Wiki UTOM')
+  const [notifReplies, setNotifReplies] = useState(true)
+  const [notifNotices, setNotifNotices] = useState(true)
+  const [notifDigest, setNotifDigest] = useState(false)
+  const [themePreference, setThemePreference] = useState<'light' | 'system' | 'dark'>('light')
+  const [savedSuccess, setSavedSuccess] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
 
   // Modal new thread fields
@@ -241,6 +253,17 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
                     <button
                       onClick={() => {
                         setUserDropdown(false)
+                        setCurrentView('settings')
+                      }}
+                      className="w-full flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer mb-1"
+                    >
+                      <Settings size={15} className="text-slate-500" />
+                      Ajustes de cuenta
+                    </button>
+
+                    <button
+                      onClick={() => {
+                        setUserDropdown(false)
                         onLogout()
                       }}
                       className="w-full flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition cursor-pointer"
@@ -259,18 +282,55 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
         {mobileMenu && (
           <div className="border-t border-slate-100 px-5 py-3 text-sm lg:hidden bg-white">
             <div className="flex flex-col gap-1 font-medium">
-              <a href="#feed" className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-emerald-700 bg-emerald-50/70 font-semibold">
+              <a
+                href="#feed"
+                onClick={() => {
+                  setMobileMenu(false)
+                  setCurrentView('feed')
+                }}
+                className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition font-semibold ${
+                  currentView === 'feed' ? 'text-emerald-700 bg-emerald-50/70' : 'text-slate-700 hover:bg-slate-50'
+                }`}
+              >
                 <Home size={18} className="text-emerald-600" />
                 <span>Feed</span>
               </a>
-              <a href="#categories" className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-slate-700 hover:bg-slate-50 hover:text-emerald-700">
+              <a
+                href="#categories"
+                onClick={() => {
+                  setMobileMenu(false)
+                  setCurrentView('feed')
+                }}
+                className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-slate-700 hover:bg-slate-50 hover:text-emerald-700"
+              >
                 <GraduationCap size={18} className="text-slate-400" />
                 <span>Carreras</span>
               </a>
-              <a href="#notices" className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-slate-700 hover:bg-slate-50 hover:text-emerald-700">
+              <a
+                href="#notices"
+                onClick={() => {
+                  setMobileMenu(false)
+                  setCurrentView('feed')
+                }}
+                className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-slate-700 hover:bg-slate-50 hover:text-emerald-700"
+              >
                 <Megaphone size={18} className="text-slate-400" />
                 <span>Avisos oficiales</span>
               </a>
+              <button
+                onClick={() => {
+                  setMobileMenu(false)
+                  setCurrentView('settings')
+                }}
+                className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition cursor-pointer ${
+                  currentView === 'settings'
+                    ? 'text-emerald-700 bg-emerald-50/70 font-semibold'
+                    : 'text-slate-700 hover:bg-slate-50 hover:text-emerald-700'
+                }`}
+              >
+                <Settings size={18} className={currentView === 'settings' ? 'text-emerald-600' : 'text-slate-400'} />
+                <span>Ajustes</span>
+              </button>
               <button
                 onClick={() => {
                   setMobileMenu(false)
@@ -339,10 +399,39 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
             <div className="my-5 h-px bg-slate-200" />
 
             <div className="flex flex-col gap-1 text-sm text-slate-600">
-              <button className="flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-white hover:shadow-xs transition cursor-pointer">
+              <button
+                onClick={() => {
+                  setCurrentView('feed')
+                  setActiveTab('Para ti')
+                }}
+                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 transition cursor-pointer ${
+                  currentView === 'feed' && activeTab === 'Mis guardados'
+                    ? 'bg-emerald-50 font-semibold text-emerald-700'
+                    : 'hover:bg-white hover:shadow-xs'
+                }`}
+              >
                 <Bookmark size={17} /> Mis guardados ({saved.length})
               </button>
-              <button className="flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-white hover:shadow-xs transition cursor-pointer">
+
+              <button
+                onClick={() => setCurrentView('settings')}
+                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 transition cursor-pointer ${
+                  currentView === 'settings'
+                    ? 'bg-emerald-50 font-semibold text-emerald-700'
+                    : 'hover:bg-white hover:shadow-xs'
+                }`}
+              >
+                <Settings size={17} className={currentView === 'settings' ? 'text-emerald-600' : 'text-slate-400'} />
+                <span>Ajustes</span>
+              </button>
+
+              <button
+                onClick={() => {
+                  setCurrentView('feed')
+                  setActiveTab('En tendencia')
+                }}
+                className="flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-white hover:shadow-xs transition cursor-pointer"
+              >
                 <TrendingUp size={17} /> Hilos populares
               </button>
             </div>
@@ -357,8 +446,244 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
           </div>
         </aside>
 
-        {/* Central Feed Section */}
-        <section id="feed" className="min-w-0">
+        {/* Central Content: Settings View or Normal Feed */}
+        {currentView === 'settings' ? (
+          <section id="settings" className="min-w-0">
+            {/* Header de Ajustes */}
+            <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+              <div>
+                <button
+                  onClick={() => setCurrentView('feed')}
+                  className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer"
+                >
+                  <ArrowLeft size={15} />
+                  Volver al Feed
+                </button>
+                <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+                  Ajustes
+                </h1>
+                <p className="mt-1 text-sm text-slate-500">
+                  Administra tu perfil institucional, preferencias de la comunidad y seguridad.
+                </p>
+              </div>
+
+              {savedSuccess && (
+                <div className="flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 px-3.5 py-2 text-xs font-semibold text-emerald-800 animate-in fade-in">
+                  <Check size={16} className="text-emerald-600" />
+                  <span>Ajustes guardados con éxito</span>
+                </div>
+              )}
+            </div>
+
+            <div className="flex flex-col gap-6">
+              {/* Tarjeta 1: Perfil Institucional */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
+                <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100 mb-5">
+                  <div className="flex size-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
+                    <User size={19} />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-slate-900">Perfil del estudiante</h2>
+                    <p className="text-xs text-slate-400">Información visible para la comunidad UTOM</p>
+                  </div>
+                </div>
+
+                <div className="flex flex-col sm:flex-row items-start gap-4 mb-6">
+                  <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-lg font-bold text-emerald-800 ring-4 ring-emerald-500/10">
+                    {user.initials}
+                  </div>
+                  <div className="flex-1 space-y-1">
+                    <div className="flex items-center gap-2">
+                      <span className="font-bold text-slate-900 text-base">{settingsName}</span>
+                      <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800">
+                        {settingsCareer}
+                      </span>
+                    </div>
+                    <p className="text-xs text-slate-500">Matrícula y cuenta verificada institucionalmente</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                      Nombre para mostrar
+                    </label>
+                    <input
+                      type="text"
+                      value={settingsName}
+                      onChange={(e) => setSettingsName(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                      Correo institucional
+                    </label>
+                    <input
+                      type="email"
+                      disabled
+                      value={user.email}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-100/70 py-2.5 px-3.5 text-sm text-slate-500 cursor-not-allowed"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                      Carrera actual
+                    </label>
+                    <select
+                      value={settingsCareer}
+                      onChange={(e) => setSettingsCareer(e.target.value)}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20"
+                    >
+                      <option value="TI">Tecnologías de la Información (TI)</option>
+                      <option value="BIO">Biotecnología (BIO)</option>
+                      <option value="MKT">Mercadotecnia (MKT)</option>
+                      <option value="GAST">Gastronomía (GAST)</option>
+                    </select>
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                      Rol institucional
+                    </label>
+                    <input
+                      type="text"
+                      disabled
+                      value={user.role || 'Estudiante UTOM'}
+                      className="w-full rounded-xl border border-slate-200 bg-slate-100/70 py-2.5 px-3.5 text-sm text-slate-500 cursor-not-allowed"
+                    />
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                      Biografía / Estado
+                    </label>
+                    <textarea
+                      rows={2}
+                      value={settingsBio}
+                      onChange={(e) => setSettingsBio(e.target.value)}
+                      className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20"
+                      placeholder="Escribe una breve presentación o materias de tu interés..."
+                    />
+                  </div>
+                </div>
+              </div>
+
+              {/* Tarjeta 2: Notificaciones y Alertas */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
+                <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100 mb-5">
+                  <div className="flex size-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
+                    <Bell size={19} />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-slate-900">Notificaciones y alertas</h2>
+                    <p className="text-xs text-slate-400">Controla cuándo recibes alertas sobre actividades del foro</p>
+                  </div>
+                </div>
+
+                <div className="space-y-3">
+                  <label className="flex items-center justify-between p-3.5 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition cursor-pointer">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-800">Respuestas a mis hilos</div>
+                      <div className="text-xs text-slate-400">Notificarme inmediatamente cuando un compañero comente</div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={notifReplies}
+                      onChange={(e) => setNotifReplies(e.target.checked)}
+                      className="size-4.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 accent-emerald-600 cursor-pointer"
+                    />
+                  </label>
+
+                  <label className="flex items-center justify-between p-3.5 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition cursor-pointer">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-800">Avisos urgentes del campus</div>
+                      <div className="text-xs text-slate-400">Convocatorias, becas y calendarios de reinscripción</div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={notifNotices}
+                      onChange={(e) => setNotifNotices(e.target.checked)}
+                      className="size-4.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 accent-emerald-600 cursor-pointer"
+                    />
+                  </label>
+
+                  <label className="flex items-center justify-between p-3.5 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition cursor-pointer">
+                    <div>
+                      <div className="text-sm font-semibold text-slate-800">Boletín semanal de mi carrera</div>
+                      <div className="text-xs text-slate-400">Hilos con mejores aportes y material descargable</div>
+                    </div>
+                    <input
+                      type="checkbox"
+                      checked={notifDigest}
+                      onChange={(e) => setNotifDigest(e.target.checked)}
+                      className="size-4.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 accent-emerald-600 cursor-pointer"
+                    />
+                  </label>
+                </div>
+              </div>
+
+              {/* Tarjeta 3: Apariencia */}
+              <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
+                <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100 mb-5">
+                  <div className="flex size-9 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
+                    <Sliders size={19} />
+                  </div>
+                  <div>
+                    <h2 className="text-base font-bold text-slate-900">Tema y visualización</h2>
+                    <p className="text-xs text-slate-400">Selecciona el modo visual preferido para navegar</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-3">
+                  {[
+                    { id: 'light', label: 'Modo Claro' },
+                    { id: 'system', label: 'Automático' },
+                    { id: 'dark', label: 'Modo Oscuro' },
+                  ].map((theme) => (
+                    <button
+                      key={theme.id}
+                      type="button"
+                      onClick={() => setThemePreference(theme.id as any)}
+                      className={`flex flex-col items-center justify-center rounded-xl border p-3.5 text-center transition cursor-pointer ${
+                        themePreference === theme.id
+                          ? 'border-emerald-500 bg-emerald-50 font-semibold text-emerald-800 ring-1 ring-emerald-500'
+                          : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                      }`}
+                    >
+                      <span className="text-xs font-semibold">{theme.label}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Botones de acción */}
+              <div className="flex items-center justify-end gap-3 pt-2 pb-6">
+                <button
+                  type="button"
+                  onClick={() => setCurrentView('feed')}
+                  className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-200/60 transition cursor-pointer"
+                >
+                  Cancelar
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setSavedSuccess(true)
+                    setTimeout(() => setSavedSuccess(false), 3000)
+                  }}
+                  className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 transition cursor-pointer"
+                >
+                  <Save size={16} />
+                  Guardar ajustes
+                </button>
+              </div>
+            </div>
+          </section>
+        ) : (
+          <section id="feed" className="min-w-0">
           <div className="mb-5 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
             <div>
               <p className="text-sm font-medium text-emerald-600">Miércoles, 12 de marzo</p>
@@ -587,6 +912,7 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
             )}
           </div>
         </section>
+      )}
 
         {/* Right Sidebar: Notices & Trends */}
         <aside className="hidden xl:block">
