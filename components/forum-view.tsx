@@ -207,13 +207,6 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
               <span className="absolute right-1.5 top-1.5 size-2 rounded-full border border-white bg-emerald-500" />
             </button>
 
-            <button
-              onClick={() => setModal(true)}
-              className="hidden items-center gap-2 rounded-xl bg-emerald-600 px-3.5 py-2 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 transition sm:flex cursor-pointer"
-            >
-              <Sparkles size={16} /> Crear hilo
-            </button>
-
             {/* User Profile dropdown menu */}
             <div className="relative">
               <button
