@@ -211,42 +211,45 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
             <div className="relative">
               <button
                 onClick={() => setUserDropdown(!userDropdown)}
-                className="flex items-center gap-2 rounded-full border border-slate-200 p-1 pr-2.5 hover:bg-slate-50 transition cursor-pointer"
+                className="flex size-9 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-800 border-2 border-emerald-500/20 hover:border-emerald-500/60 hover:shadow-sm transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
+                aria-label="Menú de perfil"
+                aria-expanded={userDropdown}
               >
-                <div className="flex size-8 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-800">
-                  {user.initials}
-                </div>
-                <div className="hidden sm:block text-left text-xs">
-                  <div className="font-semibold text-slate-800 leading-tight truncate max-w-[120px]">
-                    {user.name}
-                  </div>
-                  <div className="text-[10px] text-slate-400 leading-tight">
-                    {user.career}
-                  </div>
-                </div>
-                <ChevronDown size={14} className="text-slate-400" />
+                {user.initials}
               </button>
 
               {userDropdown && (
-                <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-white p-2 shadow-xl border border-slate-100 z-30">
-                  <div className="px-3 py-2 border-b border-slate-100 mb-1">
-                    <p className="text-xs font-bold text-slate-800">{user.name}</p>
-                    <p className="text-[11px] text-slate-400 truncate">{user.email}</p>
-                    <span className="mt-1 inline-block rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                      Carrera: {user.career}
-                    </span>
+                <>
+                  <div
+                    className="fixed inset-0 z-20"
+                    onClick={() => setUserDropdown(false)}
+                  />
+                  <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-white p-2.5 shadow-xl border border-slate-100 z-30">
+                    <div className="flex items-center gap-3 p-2.5 border-b border-slate-100 mb-1.5">
+                      <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-800 ring-2 ring-emerald-500/20">
+                        {user.initials}
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <p className="text-sm font-bold text-slate-900 leading-tight truncate">{user.name}</p>
+                        <p className="text-[11px] text-slate-400 truncate mt-0.5">{user.email}</p>
+                        <span className="mt-1.5 inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
+                          {user.career} · Estudiante UTOM
+                        </span>
+                      </div>
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setUserDropdown(false)
+                        onLogout()
+                      }}
+                      className="w-full flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                    >
+                      <LogOut size={15} />
+                      Cerrar sesión
+                    </button>
                   </div>
-                  <button
-                    onClick={() => {
-                      setUserDropdown(false)
-                      onLogout()
-                    }}
-                    className="w-full flex items-center gap-2 rounded-lg px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-                  >
-                    <LogOut size={15} />
-                    Cerrar sesión
-                  </button>
-                </div>
+                </>
               )}
             </div>
           </div>
