@@ -2,9 +2,10 @@
 
 import { useState } from 'react'
 import {
-  Bell, Bookmark, ChevronDown, ChevronRight, FileText, Hash, ImagePlus,
-  LogOut, Menu, MessageCircle, MoreHorizontal, Search, Send, Share2,
-  ShieldCheck, Sparkles, ThumbsDown, ThumbsUp, TrendingUp, Upload, X, User
+  Bell, Bookmark, ChevronDown, ChevronRight, FileText, GraduationCap, Hash,
+  Home, ImagePlus, LogOut, Megaphone, Menu, MessageCircle, MoreHorizontal,
+  Search, Send, Share2, ShieldCheck, Sparkles, ThumbsDown, ThumbsUp,
+  TrendingUp, Upload, X, User
 } from 'lucide-react'
 import { UserProfile } from './login-view'
 
@@ -170,10 +171,31 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
             />
           </div>
 
-          <nav className="hidden items-center gap-6 text-sm font-medium text-slate-500 md:flex ml-4">
-            <a className="text-emerald-700 font-semibold" href="#feed">Feed</a>
-            <a href="#categories" className="hover:text-slate-900 transition">Carreras</a>
-            <a href="#notices" className="hover:text-slate-900 transition">Avisos oficiales</a>
+          {/* Centered Navigation with icon above text */}
+          <nav className="hidden md:flex flex-1 items-center justify-center gap-4 lg:gap-8">
+            <a
+              href="#feed"
+              className="group flex flex-col items-center justify-center gap-1 rounded-xl px-3.5 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50/70"
+            >
+              <Home size={19} className="text-emerald-600 transition-transform group-hover:scale-110" />
+              <span>Feed</span>
+            </a>
+
+            <a
+              href="#categories"
+              className="group flex flex-col items-center justify-center gap-1 rounded-xl px-3.5 py-1 text-xs font-medium text-slate-500 transition hover:text-emerald-700 hover:bg-slate-50"
+            >
+              <GraduationCap size={19} className="text-slate-400 group-hover:text-emerald-600 transition-transform group-hover:scale-110" />
+              <span>Carreras</span>
+            </a>
+
+            <a
+              href="#notices"
+              className="group flex flex-col items-center justify-center gap-1 rounded-xl px-3.5 py-1 text-xs font-medium text-slate-500 transition hover:text-emerald-700 hover:bg-slate-50"
+            >
+              <Megaphone size={19} className="text-slate-400 group-hover:text-emerald-600 transition-transform group-hover:scale-110" />
+              <span>Avisos oficiales</span>
+            </a>
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
@@ -240,17 +262,28 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
         {/* Mobile menu */}
         {mobileMenu && (
           <div className="border-t border-slate-100 px-5 py-3 text-sm lg:hidden bg-white">
-            <div className="flex flex-col gap-2 font-medium">
-              <a href="#feed" className="py-1 text-emerald-700 font-semibold">Feed</a>
-              <a href="#categories" className="py-1 text-slate-700">Carreras</a>
+            <div className="flex flex-col gap-1 font-medium">
+              <a href="#feed" className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-emerald-700 bg-emerald-50/70 font-semibold">
+                <Home size={18} className="text-emerald-600" />
+                <span>Feed</span>
+              </a>
+              <a href="#categories" className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-slate-700 hover:bg-slate-50 hover:text-emerald-700">
+                <GraduationCap size={18} className="text-slate-400" />
+                <span>Carreras</span>
+              </a>
+              <a href="#notices" className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-slate-700 hover:bg-slate-50 hover:text-emerald-700">
+                <Megaphone size={18} className="text-slate-400" />
+                <span>Avisos oficiales</span>
+              </a>
               <button
                 onClick={() => {
                   setMobileMenu(false)
                   setModal(true)
                 }}
-                className="py-1 text-left text-slate-700 font-semibold"
+                className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-slate-700 hover:bg-slate-50 hover:text-emerald-700 font-semibold cursor-pointer"
               >
-                + Crear hilo
+                <Sparkles size={18} className="text-emerald-600" />
+                <span>+ Crear hilo</span>
               </button>
               <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
                 <span className="text-slate-500 font-medium">Conectado como {user.name}</span>
