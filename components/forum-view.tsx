@@ -5,7 +5,7 @@ import {
   ArrowLeft, Bell, Bookmark, Check, ChevronDown, ChevronRight, FileText,
   GraduationCap, Hash, Home, ImagePlus, LogOut, Megaphone, Menu,
   MessageCircle, MoreHorizontal, Save, Search, Send, Settings, Share2,
-  ShieldCheck, Sliders, Sparkles, ThumbsDown, ThumbsUp, TrendingUp, Upload,
+  Sliders, Sparkles, ThumbsDown, ThumbsUp, TrendingUp, Upload,
   X, User
 } from 'lucide-react'
 import { UserProfile } from './login-view'
@@ -434,14 +434,6 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
               >
                 <TrendingUp size={17} /> Hilos populares
               </button>
-            </div>
-
-            <div className="mt-8 rounded-2xl border border-emerald-100 bg-emerald-50 p-4">
-              <ShieldCheck className="mb-2 text-emerald-600" size={20} />
-              <p className="text-xs font-semibold text-emerald-900">Un espacio de todos</p>
-              <p className="mt-1 text-xs leading-5 text-emerald-700">
-                Comparte con respeto y ayuda a construir una mejor comunidad para la UTOM.
-              </p>
             </div>
           </div>
         </aside>
@@ -966,20 +958,6 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
                 ))}
               </div>
             </div>
-
-            <div className="rounded-2xl bg-slate-900 p-4 text-white shadow-md">
-              <div className="mb-2 flex items-center gap-2">
-                <ShieldCheck size={17} className="text-emerald-400" />
-                <h2 className="text-sm font-bold">Guía de convivencia</h2>
-              </div>
-              <p className="text-xs leading-5 text-slate-300">
-                Sé amable, aporta valor y respeta la privacidad de los demás. Esta es una comunidad para aprender juntos.
-              </p>
-              <button className="mt-3 text-xs font-semibold text-emerald-400 hover:underline cursor-pointer">
-                Leer las reglas →
-              </button>
-            </div>
-
           </div>
         </aside>
       </main>
