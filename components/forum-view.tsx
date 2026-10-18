@@ -1,14 +1,26 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import {
-  ArrowLeft, Bell, Bookmark, Check, ChevronDown, ChevronRight, FileText,
+  ArrowLeft, AtSign, Bell, BellOff, Bookmark, Check, CheckCheck, ChevronDown, ChevronRight, FileText,
   GraduationCap, Hash, Home, ImagePlus, LogOut, Megaphone, Menu,
   MessageCircle, MoreHorizontal, Save, Search, Send, Settings, Share2,
   Sliders, Sparkles, ThumbsDown, ThumbsUp, TrendingUp, Upload,
   X, User
 } from 'lucide-react'
 import { UserProfile } from './login-view'
+
+type NotificationType = 'reply' | 'mention' | 'notice' | 'trending'
+
+interface Notification {
+  id: number
+  type: NotificationType
+  title: string
+  description: string
+  time: string
+  read: boolean
+  threadId?: number | null
+}
 
 const initialCategories = [
   'TI', 'Biotecnología', 'Mercadotecnia', 'Gastronomía',
@@ -37,9 +49,65 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
   const [notifReplies, setNotifReplies] = useState(true)
   const [notifNotices, setNotifNotices] = useState(true)
   const [notifDigest, setNotifDigest] = useState(false)
-  const [themePreference, setThemePreference] = useState<'light' | 'system' | 'dark'>('light')
+  const [themePreference, setThemePreference] = useState<'light' | 'system' | 'dark'>('system')
   const [savedSuccess, setSavedSuccess] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+
+  // Notifications state
+  const [notifOpen, setNotifOpen] = useState(false)
+  const [notifFilter, setNotifFilter] = useState<'all' | 'unread'>('all')
+  const [notifications, setNotifications] = useState<Notification[]>([
+    {
+      id: 1, type: 'reply', title: 'Nueva respuesta en tu hilo',
+      description: 'Diego Ramírez comentó: "La recomiendo mucho, el proyecto final es una app completa."',
+      time: 'hace 12 min', read: false, threadId: 1,
+    },
+    {
+      id: 2, type: 'notice', title: 'Aviso: Periodo de reinscripciones',
+      description: 'Del 30 de septiembre al 4 de octubre. Revisa el calendario de tu carrera.',
+      time: 'hace 1 h', read: false, threadId: null,
+    },
+    {
+      id: 3, type: 'mention', title: 'Te mencionaron en un hilo',
+      description: 'Carlos Méndez te etiquetó en "Hackathon UTOM 2025".',
+      time: 'hace 3 h', read: false, threadId: 2,
+    },
+    {
+      id: 4, type: 'trending', title: 'Tu hilo está en tendencia',
+      description: '"Material para el examen de microbiología" superó los 50 votos.',
+      time: 'ayer', read: true, threadId: 3,
+    },
+    {
+      id: 5, type: 'reply', title: 'Nueva respuesta en material de estudio',
+      description: 'Paola Vega preguntó por las prácticas previas de la muestra.',
+      time: 'ayer', read: true, threadId: 4,
+    },
+  ])
+
+  // Tema: persistido en localStorage y con soporte para "Automático"
+  const [systemDark, setSystemDark] = useState(false)
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem('wiki-utom-theme')
+    if (stored === 'light' || stored === 'dark' || stored === 'system') {
+      setThemePreference(stored)
+    }
+  }, [])
+
+  useEffect(() => {
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const update = () => setSystemDark(media.matches)
+    update()
+    media.addEventListener('change', update)
+    return () => media.removeEventListener('change', update)
+  }, [])
+
+  const resolvedDark = themePreference === 'dark' || (themePreference === 'system' && systemDark)
+
+  const handleThemeChange = (preference: 'light' | 'system' | 'dark') => {
+    setThemePreference(preference)
+    window.localStorage.setItem('wiki-utom-theme', preference)
+  }
 
   // Modal new thread fields
   const [newTitle, setNewTitle] = useState('')
@@ -91,6 +159,48 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
 
   const toggleSave = (id: number) =>
     setSaved((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
+
+  const unreadCount = notifications.filter((n) => !n.read).length
+  const visibleNotifications = notifFilter === 'unread'
+    ? notifications.filter((n) => !n.read)
+    : notifications
+
+  const markAllNotificationsRead = () =>
+    setNotifications((current) => current.map((n) => (n.read ? n : { ...n, read: true })))
+
+  const dismissNotification = (id: number) =>
+    setNotifications((current) => current.filter((n) => n.id !== id))
+
+  const handleNotificationClick = (notification: Notification) => {
+    setNotifications((current) =>
+      current.map((item) => (item.id === notification.id ? { ...item, read: true } : item))
+    )
+    if (notification.threadId) {
+      setCurrentView('feed')
+      setOpenThread(notification.threadId)
+    }
+    setNotifOpen(false)
+  }
+
+  const notifIconBg: Record<NotificationType, string> = {
+    reply: 'bg-emerald-100 text-emerald-700',
+    mention: 'bg-blue-100 text-blue-700',
+    notice: 'bg-amber-100 text-amber-700',
+    trending: 'bg-violet-100 text-violet-700',
+  }
+
+  const renderNotifIcon = (type: NotificationType) => {
+    switch (type) {
+      case 'reply':
+        return <MessageCircle size={15} />
+      case 'mention':
+        return <AtSign size={15} />
+      case 'notice':
+        return <Megaphone size={15} />
+      case 'trending':
+        return <TrendingUp size={15} />
+    }
+  }
 
   const handleAddThread = (e: React.FormEvent) => {
     e.preventDefault()
@@ -163,7 +273,7 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
   })
 
   return (
-    <div className="min-h-screen bg-[#f6f8f8] text-slate-900">
+    <div className={`min-h-screen bg-[#f6f8f8] text-slate-900 ${resolvedDark ? 'theme-dark' : ''}`}>
       {/* Header */}
       <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-4 px-4 lg:px-8">
@@ -211,13 +321,125 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
-            <button
-              className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100 transition cursor-pointer"
-              aria-label="Notificaciones"
-            >
-              <Bell size={20} />
-              <span className="absolute right-1.5 top-1.5 size-2 rounded-full border border-white bg-emerald-500" />
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setNotifOpen(!notifOpen)}
+                className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100 transition cursor-pointer"
+                aria-label="Notificaciones"
+                aria-expanded={notifOpen}
+              >
+                <Bell size={20} />
+                {unreadCount > 0 && (
+                  <span className="absolute -right-0.5 -top-0.5 flex min-w-[18px] items-center justify-center rounded-full border border-white bg-emerald-500 px-1 text-[10px] font-bold leading-4 text-white">
+                    {unreadCount}
+                  </span>
+                )}
+              </button>
+
+              {notifOpen && (
+                <>
+                  <div className="fixed inset-0 z-20" onClick={() => setNotifOpen(false)} />
+                  <div className="absolute right-0 z-30 mt-2 w-[360px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-xl">
+                    <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
+                      <div className="flex items-center gap-2">
+                        <h3 className="text-sm font-bold text-slate-900">Notificaciones</h3>
+                        {unreadCount > 0 && (
+                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
+                            {unreadCount} nuevas
+                          </span>
+                        )}
+                      </div>
+                      {unreadCount > 0 && (
+                        <button
+                          onClick={markAllNotificationsRead}
+                          className="flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer"
+                        >
+                          <CheckCheck size={14} /> Marcar leídas
+                        </button>
+                      )}
+                    </div>
+
+                    <div className="flex gap-1 px-3 pt-3">
+                      {(['all', 'unread'] as const).map((filter) => (
+                        <button
+                          key={filter}
+                          onClick={() => setNotifFilter(filter)}
+                          className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition cursor-pointer ${
+                            notifFilter === filter
+                              ? 'bg-emerald-50 text-emerald-700'
+                              : 'text-slate-500 hover:bg-slate-50'
+                          }`}
+                        >
+                          {filter === 'all' ? 'Todas' : `No leídas${unreadCount > 0 ? ` (${unreadCount})` : ''}`}
+                        </button>
+                      ))}
+                    </div>
+
+                    <div className="mt-2 max-h-[340px] overflow-y-auto">
+                      {visibleNotifications.length === 0 ? (
+                        <div className="flex flex-col items-center justify-center px-6 py-10 text-center">
+                          <BellOff size={26} className="mb-2 text-slate-300" />
+                          <p className="text-sm font-semibold text-slate-600">Sin notificaciones</p>
+                          <p className="mt-1 text-xs text-slate-400">
+                            {notifFilter === 'unread'
+                              ? 'Ya leíste todas tus notificaciones.'
+                              : 'Aquí verás la actividad de la comunidad.'}
+                          </p>
+                        </div>
+                      ) : (
+                        visibleNotifications.map((notification) => (
+                          <div
+                            key={notification.id}
+                            onClick={() => handleNotificationClick(notification)}
+                            className={`group relative flex cursor-pointer gap-3 px-4 py-3 transition ${
+                              notification.read
+                                ? 'hover:bg-slate-50'
+                                : 'bg-emerald-50/40 hover:bg-emerald-50/70'
+                            }`}
+                          >
+                            <div className={`flex size-8 shrink-0 items-center justify-center rounded-full ${notifIconBg[notification.type]}`}>
+                              {renderNotifIcon(notification.type)}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex items-center gap-2">
+                                <p className="text-xs font-bold text-slate-900">{notification.title}</p>
+                                {!notification.read && (
+                                  <span className="size-1.5 shrink-0 rounded-full bg-emerald-500" />
+                                )}
+                              </div>
+                              <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-slate-500">
+                                {notification.description}
+                              </p>
+                              <span className="mt-1 block text-[10px] text-slate-400">{notification.time}</span>
+                            </div>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation()
+                                dismissNotification(notification.id)
+                              }}
+                              className="absolute right-2 top-2 rounded-md p-1 text-slate-300 opacity-0 transition hover:bg-slate-100 hover:text-slate-500 group-hover:opacity-100 cursor-pointer"
+                              aria-label="Descartar notificación"
+                            >
+                              <X size={13} />
+                            </button>
+                          </div>
+                        ))
+                      )}
+                    </div>
+
+                    <button
+                      onClick={() => {
+                        setCurrentView('settings')
+                        setNotifOpen(false)
+                      }}
+                      className="flex w-full items-center justify-center gap-1.5 border-t border-slate-100 px-4 py-2.5 text-[11px] font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-emerald-700 cursor-pointer"
+                    >
+                      <Settings size={13} /> Configurar notificaciones
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
 
             {/* User Profile dropdown menu */}
             <div className="relative">
@@ -625,7 +847,7 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
                   </div>
                   <div>
                     <h2 className="text-base font-bold text-slate-900">Tema y visualización</h2>
-                    <p className="text-xs text-slate-400">Selecciona el modo visual preferido para navegar</p>
+                    <p className="text-xs text-slate-400">Se aplica de inmediato y se guarda en este equipo</p>
                   </div>
                 </div>
 
@@ -638,7 +860,7 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
                     <button
                       key={theme.id}
                       type="button"
-                      onClick={() => setThemePreference(theme.id as any)}
+                      onClick={() => handleThemeChange(theme.id as 'light' | 'system' | 'dark')}
                       className={`flex flex-col items-center justify-center rounded-xl border p-3.5 text-center transition cursor-pointer ${
                         themePreference === theme.id
                           ? 'border-emerald-500 bg-emerald-50 font-semibold text-emerald-800 ring-1 ring-emerald-500'
@@ -649,6 +871,10 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
                     </button>
                   ))}
                 </div>
+                <p className="mt-3 text-[11px] text-slate-400">
+                  Tema en uso: <span className="font-semibold text-slate-600">{resolvedDark ? 'Modo oscuro' : 'Modo claro'}</span>
+                  {themePreference === 'system' ? ' · siguiendo tu sistema' : ' · guardado en este equipo'}
+                </p>
               </div>
 
               {/* Botones de acción */}

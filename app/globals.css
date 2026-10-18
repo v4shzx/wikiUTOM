@@ -177,3 +177,52 @@
     @apply bg-background text-foreground;
   }
 }
+
+/* ================================================================
+   Tema oscuro del panel principal — controlado desde Ajustes.
+   La clase .theme-dark se aplica en la raíz de ForumView.
+   Reglas fuera de @layer para prevalecer sobre las utilidades.
+   ================================================================ */
+.theme-dark {
+  color-scheme: dark;
+}
+
+/* Superficies */
+.theme-dark.bg-\[\#f6f8f8\] { background-color: var(--color-slate-950); }
+.theme-dark .bg-\[\#f6f8f8\] { background-color: var(--color-slate-950); }
+.theme-dark .bg-white { background-color: var(--color-slate-900); }
+.theme-dark .bg-white\/95 { background-color: color-mix(in oklab, var(--color-slate-900) 92%, transparent); }
+.theme-dark .bg-slate-50 { background-color: color-mix(in oklab, var(--color-slate-800) 55%, transparent); }
+.theme-dark .bg-slate-50\/50 { background-color: color-mix(in oklab, var(--color-slate-800) 40%, transparent); }
+.theme-dark .bg-slate-50\/70 { background-color: color-mix(in oklab, var(--color-slate-800) 48%, transparent); }
+.theme-dark .bg-slate-100 { background-color: var(--color-slate-800); }
+.theme-dark .bg-slate-100\/70 { background-color: color-mix(in oklab, var(--color-slate-800) 70%, transparent); }
+.theme-dark .bg-slate-200 { background-color: var(--color-slate-800); }
+.theme-dark .bg-slate-300 { background-color: var(--color-slate-600); }
+.theme-dark .bg-slate-400 { background-color: var(--color-slate-500); }
+.theme-dark .bg-slate-900\/40 { background-color: color-mix(in oklab, var(--color-slate-950) 65%, transparent); }
+.theme-dark .focus\:bg-white:focus { background-color: var(--color-slate-900); }
+.theme-dark .hover\:bg-white:hover { background-color: color-mix(in oklab, var(--color-slate-800) 40%, transparent); }
+.theme-dark .hover\:bg-slate-50:hover { background-color: color-mix(in oklab, var(--color-slate-800) 45%, transparent); }
+.theme-dark .hover\:bg-slate-100:hover { background-color: var(--color-slate-800); }
+.theme-dark .hover\:bg-slate-200\/60:hover { background-color: color-mix(in oklab, var(--color-slate-700) 55%, transparent); }
+
+/* Texto */
+.theme-dark .text-slate-900 { color: var(--color-slate-100); }
+.theme-dark .text-slate-800 { color: var(--color-slate-200); }
+.theme-dark .text-slate-700 { color: var(--color-slate-300); }
+.theme-dark .text-slate-600 { color: var(--color-slate-400); }
+.theme-dark .text-slate-500 { color: var(--color-slate-400); }
+.theme-dark .text-slate-400 { color: var(--color-slate-500); }
+.theme-dark .text-slate-300 { color: var(--color-slate-500); }
+.theme-dark .hover\:text-slate-600:hover { color: var(--color-slate-200); }
+.theme-dark .hover\:text-slate-500:hover { color: var(--color-slate-300); }
+.theme-dark .hover\:text-slate-700:hover { color: var(--color-slate-200); }
+
+/* Bordes y anillos */
+.theme-dark .border-slate-200 { border-color: var(--color-slate-800); }
+.theme-dark .border-slate-200\/60 { border-color: var(--color-slate-800); }
+.theme-dark .border-slate-100 { border-color: color-mix(in oklab, var(--color-slate-800) 75%, transparent); }
+.theme-dark .border-slate-300 { border-color: var(--color-slate-600); }
+.theme-dark .ring-slate-100 { --tw-ring-color: var(--color-slate-800); }
+.theme-dark .ring-slate-200 { --tw-ring-color: var(--color-slate-700); }
