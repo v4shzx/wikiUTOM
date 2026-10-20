@@ -2,8 +2,8 @@
 
 import { useEffect, useState } from 'react'
 import {
-  ArrowLeft, AtSign, Bell, BellOff, Bookmark, Check, CheckCheck, ChevronDown, ChevronRight, FileText,
-  GraduationCap, Hash, Home, ImagePlus, LogOut, Megaphone, Menu,
+  ArrowLeft, AtSign, Bell, BellOff, Bookmark, Check, CheckCheck, ChevronDown, ChevronRight, Circle,
+  Eye, EyeOff, FileText, GraduationCap, Hash, Home, ImagePlus, KeyRound, LogOut, Megaphone, Menu,
   MessageCircle, MoreHorizontal, Save, Search, Send, Settings, Share2,
   Sliders, Sparkles, ThumbsDown, ThumbsUp, TrendingUp, Upload,
   X, User
@@ -27,6 +27,54 @@ const initialCategories = [
   'Convocatorias', 'Preguntas Frecuentes',
 ]
 
+const categoryDot: Record<string, string> = {
+  'TI': 'bg-emerald-500',
+  'Biotecnología': 'bg-violet-500',
+  'Mercadotecnia': 'bg-blue-500',
+  'Gastronomía': 'bg-amber-500',
+  'Convocatorias': 'bg-pink-500',
+  'Preguntas Frecuentes': 'bg-slate-400',
+}
+
+const careerOptions = [
+  { value: 'TI', label: 'Tecnologías de la Información (TI)' },
+  { value: 'BIO', label: 'Biotecnología (BIO)' },
+  { value: 'MKT', label: 'Mercadotecnia (MKT)' },
+  { value: 'GAST', label: 'Gastronomía (GAST)' },
+]
+
+const NAME_MAX = 40
+const BIO_MAX = 160
+
+const fieldLabelClass = 'block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5 cursor-pointer'
+const fieldInputClass = 'w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20'
+const readOnlyInputClass = 'w-full rounded-xl border border-slate-200 bg-slate-100/70 py-2.5 px-3.5 text-sm text-slate-500 outline-none focus:ring-2 focus:ring-slate-300/40'
+
+const PASSWORD_MIN = 8
+
+const passwordRules = [
+  { id: 'length', label: `Al menos ${PASSWORD_MIN} caracteres`, test: (value: string) => value.length >= PASSWORD_MIN },
+  { id: 'upper', label: 'Una letra mayúscula', test: (value: string) => /[A-ZÁÉÍÓÚÑ]/.test(value) },
+  { id: 'lower', label: 'Una letra minúscula', test: (value: string) => /[a-záéíóúñ]/.test(value) },
+  { id: 'number', label: 'Un número', test: (value: string) => /\d/.test(value) },
+  { id: 'symbol', label: 'Un símbolo (!@#$%...)', test: (value: string) => /[^A-Za-z0-9ÁÉÍÓÚÑáéíóúñ\s]/.test(value) },
+  { id: 'spaces', label: 'Sin espacios', test: (value: string) => value.length > 0 && !/\s/.test(value) },
+]
+
+const getInitials = (name: string) =>
+  name.trim().split(/\s+/).filter(Boolean).slice(0, 2).map((part) => part[0].toUpperCase()).join('')
+
+type NavSection = 'feed' | 'categories' | 'notices'
+
+const navItems: { id: NavSection; label: string; icon: typeof Home }[] = [
+  { id: 'feed', label: 'Feed', icon: Home },
+  { id: 'categories', label: 'Carreras', icon: GraduationCap },
+  { id: 'notices', label: 'Avisos oficiales', icon: Megaphone },
+]
+
+const isNavSection = (value: string): value is NavSection =>
+  navItems.some((item) => item.id === value)
+
 interface ForumViewProps {
   user: UserProfile
   onLogout: () => void
@@ -41,10 +89,30 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
   const [mobileMenu, setMobileMenu] = useState(false)
   const [userDropdown, setUserDropdown] = useState(false)
   const [currentView, setCurrentView] = useState<'feed' | 'settings'>('feed')
+  const [navSection, setNavSection] = useState<NavSection>('feed')
+  const [selectedCategories, setSelectedCategories] = useState<string[]>([])
+
+  // En Ajustes ninguna sección de la navbar queda marcada
+  const activeNav: NavSection | null = currentView === 'settings' ? null : navSection
+
+  const goToSection = (section: NavSection) => {
+    setCurrentView('feed')
+    setNavSection(section)
+  }
+
+  // Sincroniza la sección activa con el hash (enlaces directos y botón atrás/adelante)
+  useEffect(() => {
+    const syncFromHash = () => {
+      const hash = window.location.hash.slice(1)
+      if (isNavSection(hash)) goToSection(hash)
+    }
+    syncFromHash()
+    window.addEventListener('hashchange', syncFromHash)
+    return () => window.removeEventListener('hashchange', syncFromHash)
+  }, [])
 
   // Settings view state
   const [settingsName, setSettingsName] = useState(user.name)
-  const [settingsCareer, setSettingsCareer] = useState(user.career)
   const [settingsBio, setSettingsBio] = useState('Estudiante activo en la comunidad Wiki UTOM')
   const [notifReplies, setNotifReplies] = useState(true)
   const [notifNotices, setNotifNotices] = useState(true)
@@ -52,6 +120,38 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
   const [themePreference, setThemePreference] = useState<'light' | 'system' | 'dark'>('system')
   const [savedSuccess, setSavedSuccess] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+
+  const trimmedName = settingsName.trim()
+  const nameError = !trimmedName
+    ? 'El nombre no puede quedar vacío.'
+    : trimmedName.length < 3
+      ? 'Usa al menos 3 caracteres.'
+      : ''
+
+  // Cambio de contraseña: verificación 1 = reglas de sintaxis, verificación 2 = confirmación idéntica
+  const [currentPassword, setCurrentPassword] = useState('')
+  const [newPassword, setNewPassword] = useState('')
+  const [confirmPassword, setConfirmPassword] = useState('')
+  const [showPasswords, setShowPasswords] = useState(false)
+  const [passwordSuccess, setPasswordSuccess] = useState(false)
+
+  const passwordChecks = passwordRules.map((rule) => ({ ...rule, passed: rule.test(newPassword) }))
+  const passwordSyntaxValid = passwordChecks.every((rule) => rule.passed)
+  const passwordReused = newPassword.length > 0 && newPassword === currentPassword
+  const passwordsMatch = confirmPassword.length > 0 && confirmPassword === newPassword
+  const canChangePassword =
+    currentPassword.length > 0 && passwordSyntaxValid && !passwordReused && passwordsMatch
+
+  const handleChangePassword = (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!canChangePassword) return
+    setCurrentPassword('')
+    setNewPassword('')
+    setConfirmPassword('')
+    setShowPasswords(false)
+    setPasswordSuccess(true)
+    setTimeout(() => setPasswordSuccess(false), 3000)
+  }
 
   // Notifications state
   const [notifOpen, setNotifOpen] = useState(false)
@@ -176,7 +276,7 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
       current.map((item) => (item.id === notification.id ? { ...item, read: true } : item))
     )
     if (notification.threadId) {
-      setCurrentView('feed')
+      goToSection('feed')
       setOpenThread(notification.threadId)
     }
     setNotifOpen(false)
@@ -261,7 +361,16 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
     setNewCommentText((current) => ({ ...current, [threadId]: '' }))
   }
 
+  const isCareersView = activeNav === 'categories'
+
+  const toggleCategory = (category: string) =>
+    setSelectedCategories((current) =>
+      current.includes(category) ? current.filter((item) => item !== category) : [...current, category]
+    )
+
   const filteredThreads = threads.filter((t) => {
+    // Vista Carreras: sin selección se muestran todas; con selección, cualquiera de las elegidas
+    if (isCareersView && selectedCategories.length > 0 && !selectedCategories.includes(t.category)) return false
     if (!searchQuery.trim()) return true
     const q = searchQuery.toLowerCase()
     return (
@@ -295,29 +404,33 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
 
           {/* Centered Navigation with icon above text */}
           <nav className="hidden md:flex flex-1 items-center justify-center gap-4 lg:gap-8">
-            <a
-              href="#feed"
-              className="group flex flex-col items-center justify-center gap-1 rounded-xl px-3.5 py-1 text-xs font-semibold text-emerald-700 transition hover:bg-emerald-50/70"
-            >
-              <Home size={19} className="text-emerald-600 transition-transform group-hover:scale-110" />
-              <span>Feed</span>
-            </a>
-
-            <a
-              href="#categories"
-              className="group flex flex-col items-center justify-center gap-1 rounded-xl px-3.5 py-1 text-xs font-medium text-slate-500 transition hover:text-emerald-700 hover:bg-slate-50"
-            >
-              <GraduationCap size={19} className="text-slate-400 group-hover:text-emerald-600 transition-transform group-hover:scale-110" />
-              <span>Carreras</span>
-            </a>
-
-            <a
-              href="#notices"
-              className="group flex flex-col items-center justify-center gap-1 rounded-xl px-3.5 py-1 text-xs font-medium text-slate-500 transition hover:text-emerald-700 hover:bg-slate-50"
-            >
-              <Megaphone size={19} className="text-slate-400 group-hover:text-emerald-600 transition-transform group-hover:scale-110" />
-              <span>Avisos oficiales</span>
-            </a>
+            {navItems.map(({ id, label, icon: Icon }) => {
+              const active = activeNav === id
+              return (
+                <a
+                  key={id}
+                  href={`#${id}`}
+                  onClick={() => goToSection(id)}
+                  aria-current={active ? 'page' : undefined}
+                  className={`group relative flex flex-col items-center justify-center gap-1 rounded-xl px-3.5 py-1 text-xs transition ${
+                    active
+                      ? 'bg-emerald-50/70 font-semibold text-emerald-700'
+                      : 'font-medium text-slate-500 hover:bg-slate-50 hover:text-emerald-700'
+                  }`}
+                >
+                  <Icon
+                    size={19}
+                    className={`transition-transform group-hover:scale-110 ${
+                      active ? 'text-emerald-600' : 'text-slate-400 group-hover:text-emerald-600'
+                    }`}
+                  />
+                  <span>{label}</span>
+                  {active && (
+                    <span className="absolute -bottom-2 left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full bg-emerald-600" />
+                  )}
+                </a>
+              )
+            })}
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
@@ -504,41 +617,28 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
         {mobileMenu && (
           <div className="border-t border-slate-100 px-5 py-3 text-sm lg:hidden bg-white">
             <div className="flex flex-col gap-1 font-medium">
-              <a
-                href="#feed"
-                onClick={() => {
-                  setMobileMenu(false)
-                  setCurrentView('feed')
-                }}
-                className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition font-semibold ${
-                  currentView === 'feed' ? 'text-emerald-700 bg-emerald-50/70' : 'text-slate-700 hover:bg-slate-50'
-                }`}
-              >
-                <Home size={18} className="text-emerald-600" />
-                <span>Feed</span>
-              </a>
-              <a
-                href="#categories"
-                onClick={() => {
-                  setMobileMenu(false)
-                  setCurrentView('feed')
-                }}
-                className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-slate-700 hover:bg-slate-50 hover:text-emerald-700"
-              >
-                <GraduationCap size={18} className="text-slate-400" />
-                <span>Carreras</span>
-              </a>
-              <a
-                href="#notices"
-                onClick={() => {
-                  setMobileMenu(false)
-                  setCurrentView('feed')
-                }}
-                className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-slate-700 hover:bg-slate-50 hover:text-emerald-700"
-              >
-                <Megaphone size={18} className="text-slate-400" />
-                <span>Avisos oficiales</span>
-              </a>
+              {navItems.map(({ id, label, icon: Icon }) => {
+                const active = activeNav === id
+                return (
+                  <a
+                    key={id}
+                    href={`#${id}`}
+                    onClick={() => {
+                      setMobileMenu(false)
+                      goToSection(id)
+                    }}
+                    aria-current={active ? 'page' : undefined}
+                    className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition ${
+                      active
+                        ? 'bg-emerald-50/70 font-semibold text-emerald-700'
+                        : 'text-slate-700 hover:bg-slate-50 hover:text-emerald-700'
+                    }`}
+                  >
+                    <Icon size={18} className={active ? 'text-emerald-600' : 'text-slate-400'} />
+                    <span>{label}</span>
+                  </a>
+                )
+              })}
               <button
                 onClick={() => {
                   setMobileMenu(false)
@@ -581,49 +681,15 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
       <main className="mx-auto grid max-w-[1440px] grid-cols-1 gap-6 px-4 py-6 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1fr)_280px] lg:px-8">
         
         {/* Left Sidebar */}
-        <aside id="categories" className="hidden lg:block">
+        <aside className="hidden lg:block" aria-labelledby="sidebar-title">
           <div className="sticky top-24">
-            <div className="mb-3 flex items-center justify-between px-2">
-              <span className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                Explorar
-              </span>
-              <button className="text-slate-400 hover:text-slate-600">
-                <MoreHorizontal size={16} />
-              </button>
-            </div>
-            <div className="flex flex-col gap-1">
-              {initialCategories.map((item, index) => (
-                <button
-                  key={item}
-                  className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-left text-sm transition cursor-pointer ${
-                    index === 0
-                      ? 'bg-emerald-50 font-semibold text-emerald-700'
-                      : 'text-slate-600 hover:bg-white hover:shadow-xs'
-                  }`}
-                >
-                  <span
-                    className={`size-2 rounded-full ${
-                      [
-                        'bg-emerald-500',
-                        'bg-violet-500',
-                        'bg-blue-500',
-                        'bg-amber-500',
-                        'bg-pink-500',
-                        'bg-slate-400'
-                      ][index]
-                    }`}
-                  />
-                  <span className="truncate">{item}</span>
-                </button>
-              ))}
-            </div>
-
-            <div className="my-5 h-px bg-slate-200" />
-
+            <h2 id="sidebar-title" className="mb-3 px-2 text-xs font-bold uppercase tracking-wider text-slate-400">
+              Accesos rápidos
+            </h2>
             <div className="flex flex-col gap-1 text-sm text-slate-600">
               <button
                 onClick={() => {
-                  setCurrentView('feed')
+                  goToSection('feed')
                   setActiveTab('Para ti')
                 }}
                 className={`flex items-center gap-3 rounded-xl px-3 py-2.5 transition cursor-pointer ${
@@ -649,7 +715,7 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
 
               <button
                 onClick={() => {
-                  setCurrentView('feed')
+                  goToSection('feed')
                   setActiveTab('En tendencia')
                 }}
                 className="flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-white hover:shadow-xs transition cursor-pointer"
@@ -667,7 +733,7 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
             <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
               <div>
                 <button
-                  onClick={() => setCurrentView('feed')}
+                  onClick={() => goToSection('feed')}
                   className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer"
                 >
                   <ArrowLeft size={15} />
@@ -702,90 +768,277 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
                   </div>
                 </div>
 
-                <div className="flex flex-col sm:flex-row items-start gap-4 mb-6">
+                <div className="flex flex-col sm:flex-row items-start gap-4 mb-6" aria-live="polite">
                   <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-lg font-bold text-emerald-800 ring-4 ring-emerald-500/10">
-                    {user.initials}
+                    {getInitials(settingsName) || user.initials}
                   </div>
-                  <div className="flex-1 space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="font-bold text-slate-900 text-base">{settingsName}</span>
+                  <div className="min-w-0 flex-1 space-y-1">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <span className="truncate font-bold text-slate-900 text-base">
+                        {settingsName.trim() || 'Sin nombre'}
+                      </span>
                       <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800">
-                        {settingsCareer}
+                        {user.career}
                       </span>
                     </div>
-                    <p className="text-xs text-slate-500">Matrícula y cuenta verificada institucionalmente</p>
+                    <p className="text-xs text-slate-500">Vista previa de cómo te verán en la comunidad</p>
                   </div>
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                      Nombre para mostrar
-                    </label>
-                    <input
-                      type="text"
-                      value={settingsName}
-                      onChange={(e) => setSettingsName(e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20"
-                    />
-                  </div>
+                <fieldset className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-5">
+                  <legend className="sr-only">Datos editables del perfil</legend>
 
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                    <label htmlFor="profile-name" className={fieldLabelClass}>
+                      Nombre para mostrar <span className="text-rose-500" aria-hidden="true">*</span>
+                    </label>
+                    <input
+                      id="profile-name"
+                      name="displayName"
+                      type="text"
+                      autoComplete="name"
+                      required
+                      maxLength={NAME_MAX}
+                      value={settingsName}
+                      onChange={(e) => setSettingsName(e.target.value)}
+                      aria-invalid={nameError ? true : undefined}
+                      aria-describedby="profile-name-hint"
+                      className={`${fieldInputClass} ${nameError ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-500/20' : ''}`}
+                    />
+                    <p id="profile-name-hint" className={`mt-1.5 text-[11px] ${nameError ? 'text-rose-600' : 'text-slate-400'}`}>
+                      {nameError || 'Así aparecerás en tus hilos y comentarios.'}
+                    </p>
+                  </div>
+
+                  <div className="sm:col-span-2">
+                    <div className="flex items-baseline justify-between">
+                      <label htmlFor="profile-bio" className={fieldLabelClass}>
+                        Biografía / Estado
+                      </label>
+                      <span
+                        className={`text-[11px] tabular-nums ${settingsBio.length >= BIO_MAX ? 'text-rose-600' : 'text-slate-400'}`}
+                        aria-hidden="true"
+                      >
+                        {settingsBio.length}/{BIO_MAX}
+                      </span>
+                    </div>
+                    <textarea
+                      id="profile-bio"
+                      name="bio"
+                      rows={3}
+                      maxLength={BIO_MAX}
+                      value={settingsBio}
+                      onChange={(e) => setSettingsBio(e.target.value)}
+                      aria-describedby="profile-bio-hint"
+                      className={`${fieldInputClass} resize-none`}
+                      placeholder="Escribe una breve presentación o materias de tu interés..."
+                    />
+                    <p id="profile-bio-hint" className="mt-1.5 text-[11px] text-slate-400">
+                      Opcional · máximo {BIO_MAX} caracteres.
+                    </p>
+                  </div>
+                </fieldset>
+
+                <fieldset className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-5 border-t border-slate-100 pt-5">
+                  <legend className="mb-3 text-[11px] font-semibold text-slate-400">
+                    Gestionado por la institución · no editable
+                  </legend>
+
+                  <div>
+                    <label htmlFor="profile-email" className={fieldLabelClass}>
                       Correo institucional
                     </label>
                     <input
+                      id="profile-email"
+                      name="email"
                       type="email"
-                      disabled
+                      readOnly
                       value={user.email}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-100/70 py-2.5 px-3.5 text-sm text-slate-500 cursor-not-allowed"
+                      className={readOnlyInputClass}
                     />
                   </div>
 
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                      Carrera actual
-                    </label>
-                    <select
-                      value={settingsCareer}
-                      onChange={(e) => setSettingsCareer(e.target.value)}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20"
-                    >
-                      <option value="TI">Tecnologías de la Información (TI)</option>
-                      <option value="BIO">Biotecnología (BIO)</option>
-                      <option value="MKT">Mercadotecnia (MKT)</option>
-                      <option value="GAST">Gastronomía (GAST)</option>
-                    </select>
-                  </div>
-
-                  <div>
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
+                    <label htmlFor="profile-role" className={fieldLabelClass}>
                       Rol institucional
                     </label>
                     <input
+                      id="profile-role"
+                      name="role"
                       type="text"
-                      disabled
+                      readOnly
                       value={user.role || 'Estudiante UTOM'}
-                      className="w-full rounded-xl border border-slate-200 bg-slate-100/70 py-2.5 px-3.5 text-sm text-slate-500 cursor-not-allowed"
+                      className={readOnlyInputClass}
                     />
                   </div>
 
                   <div className="sm:col-span-2">
-                    <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                      Biografía / Estado
+                    <label htmlFor="profile-career" className={fieldLabelClass}>
+                      Carrera actual
                     </label>
-                    <textarea
-                      rows={2}
-                      value={settingsBio}
-                      onChange={(e) => setSettingsBio(e.target.value)}
-                      className="w-full resize-none rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20"
-                      placeholder="Escribe una breve presentación o materias de tu interés..."
+                    <input
+                      id="profile-career"
+                      name="career"
+                      type="text"
+                      readOnly
+                      value={careerOptions.find((career) => career.value === user.career)?.label || user.career}
+                      aria-describedby="profile-career-hint"
+                      className={readOnlyInputClass}
                     />
+                    <p id="profile-career-hint" className="mt-1.5 text-[11px] text-slate-400">
+                      Para un cambio de carrera acude a Servicios Escolares.
+                    </p>
                   </div>
-                </div>
+                </fieldset>
               </div>
 
-              {/* Tarjeta 2: Notificaciones y Alertas */}
+              {/* Tarjeta 2: Seguridad / Cambio de contraseña */}
+              <form
+                onSubmit={handleChangePassword}
+                noValidate
+                className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm"
+              >
+                <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100 mb-5">
+                  <div className="flex size-9 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
+                    <KeyRound size={19} />
+                  </div>
+                  <div className="flex-1">
+                    <h2 className="text-base font-bold text-slate-900">Cambiar contraseña</h2>
+                    <p className="text-xs text-slate-400">Verificamos el formato y que ambas contraseñas coincidan</p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPasswords(!showPasswords)}
+                    aria-pressed={showPasswords}
+                    className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-slate-500 hover:bg-slate-100 transition cursor-pointer"
+                  >
+                    {showPasswords ? <EyeOff size={14} /> : <Eye size={14} />}
+                    {showPasswords ? 'Ocultar' : 'Mostrar'}
+                  </button>
+                </div>
+
+                {/* Campo oculto para que los gestores de contraseñas asocien la cuenta */}
+                <input type="email" name="username" autoComplete="username" value={user.email} readOnly hidden />
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-5">
+                  <div className="sm:col-span-2 sm:max-w-[calc(50%-0.5rem)]">
+                    <label htmlFor="password-current" className={fieldLabelClass}>
+                      Contraseña actual
+                    </label>
+                    <input
+                      id="password-current"
+                      name="currentPassword"
+                      type={showPasswords ? 'text' : 'password'}
+                      autoComplete="current-password"
+                      required
+                      value={currentPassword}
+                      onChange={(e) => setCurrentPassword(e.target.value)}
+                      className={fieldInputClass}
+                    />
+                  </div>
+
+                  <div>
+                    <label htmlFor="password-new" className={fieldLabelClass}>
+                      Nueva contraseña
+                    </label>
+                    <input
+                      id="password-new"
+                      name="newPassword"
+                      type={showPasswords ? 'text' : 'password'}
+                      autoComplete="new-password"
+                      required
+                      value={newPassword}
+                      onChange={(e) => setNewPassword(e.target.value)}
+                      aria-invalid={newPassword && (!passwordSyntaxValid || passwordReused) ? true : undefined}
+                      aria-describedby="password-rules password-reused"
+                      className={`${fieldInputClass} ${
+                        newPassword && (!passwordSyntaxValid || passwordReused)
+                          ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-500/20'
+                          : newPassword && passwordSyntaxValid
+                            ? 'border-emerald-400'
+                            : ''
+                      }`}
+                    />
+                    <p id="password-reused" className="mt-1.5 text-[11px] text-rose-600" aria-live="polite">
+                      {passwordReused ? 'La nueva contraseña debe ser distinta a la actual.' : ''}
+                    </p>
+                  </div>
+
+                  <div>
+                    <label htmlFor="password-confirm" className={fieldLabelClass}>
+                      Confirmar nueva contraseña
+                    </label>
+                    <input
+                      id="password-confirm"
+                      name="confirmPassword"
+                      type={showPasswords ? 'text' : 'password'}
+                      autoComplete="new-password"
+                      required
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      onPaste={(e) => e.preventDefault()}
+                      aria-invalid={confirmPassword && !passwordsMatch ? true : undefined}
+                      aria-describedby="password-confirm-hint"
+                      className={`${fieldInputClass} ${
+                        confirmPassword && !passwordsMatch
+                          ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-500/20'
+                          : passwordsMatch
+                            ? 'border-emerald-400'
+                            : ''
+                      }`}
+                    />
+                    <p
+                      id="password-confirm-hint"
+                      aria-live="polite"
+                      className={`mt-1.5 flex items-center gap-1 text-[11px] ${
+                        !confirmPassword ? 'text-slate-400' : passwordsMatch ? 'text-emerald-600' : 'text-rose-600'
+                      }`}
+                    >
+                      {!confirmPassword
+                        ? 'Escríbela de nuevo (no se permite pegar).'
+                        : passwordsMatch
+                          ? <><Check size={12} /> Las contraseñas coinciden</>
+                          : <><X size={12} /> Las contraseñas no coinciden</>}
+                    </p>
+                  </div>
+
+                  <ul
+                    id="password-rules"
+                    className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-1.5 rounded-xl border border-slate-100 bg-slate-50/50 p-3.5"
+                  >
+                    {passwordChecks.map((rule) => (
+                      <li
+                        key={rule.id}
+                        className={`flex items-center gap-1.5 text-[11px] font-medium ${
+                          rule.passed ? 'text-emerald-700' : 'text-slate-400'
+                        }`}
+                      >
+                        {rule.passed ? <Check size={13} className="text-emerald-600" /> : <Circle size={11} />}
+                        {rule.label}
+                        <span className="sr-only">{rule.passed ? '(cumplido)' : '(pendiente)'}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+
+                <div className="mt-5 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3">
+                  {passwordSuccess && (
+                    <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700" role="status">
+                      <Check size={15} /> Contraseña actualizada
+                    </span>
+                  )}
+                  <button
+                    type="submit"
+                    disabled={!canChangePassword}
+                    className="flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 transition cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-slate-900"
+                  >
+                    <KeyRound size={15} />
+                    Actualizar contraseña
+                  </button>
+                </div>
+              </form>
+
+              {/* Tarjeta 3: Notificaciones y Alertas */}
               <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
                 <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100 mb-5">
                   <div className="flex size-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
@@ -839,7 +1092,7 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
                 </div>
               </div>
 
-              {/* Tarjeta 3: Apariencia */}
+              {/* Tarjeta 4: Apariencia */}
               <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
                 <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100 mb-5">
                   <div className="flex size-9 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
@@ -881,18 +1134,19 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
               <div className="flex items-center justify-end gap-3 pt-2 pb-6">
                 <button
                   type="button"
-                  onClick={() => setCurrentView('feed')}
+                  onClick={() => goToSection('feed')}
                   className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-200/60 transition cursor-pointer"
                 >
                   Cancelar
                 </button>
                 <button
                   type="button"
+                  disabled={!!nameError}
                   onClick={() => {
                     setSavedSuccess(true)
                     setTimeout(() => setSavedSuccess(false), 3000)
                   }}
-                  className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 transition cursor-pointer"
+                  className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 transition cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-emerald-600"
                 >
                   <Save size={16} />
                   Guardar ajustes
@@ -901,7 +1155,76 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
             </div>
           </section>
         ) : (
-          <section id="feed" className="min-w-0">
+          <section id={isCareersView ? 'categories' : 'feed'} className="min-w-0">
+          {isCareersView ? (
+            <div className="mb-5">
+              <p className="text-sm font-medium text-emerald-600">Carreras</p>
+              <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
+                Explora por carrera
+              </h1>
+              <p className="mt-1 text-sm text-slate-500">
+                Selecciona una o varias categorías para combinar sus hilos.
+              </p>
+
+              <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
+                <div className="mb-3 flex items-center justify-between">
+                  <span id="careers-filter-label" className="text-xs font-bold uppercase tracking-wider text-slate-400">
+                    Explorar
+                  </span>
+                  {selectedCategories.length > 0 && (
+                    <button
+                      onClick={() => setSelectedCategories([])}
+                      className="flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:underline cursor-pointer"
+                    >
+                      <X size={13} /> Limpiar filtros ({selectedCategories.length})
+                    </button>
+                  )}
+                </div>
+
+                <div role="group" aria-labelledby="careers-filter-label" className="flex flex-wrap gap-2">
+                  <button
+                    onClick={() => setSelectedCategories([])}
+                    aria-pressed={selectedCategories.length === 0}
+                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${
+                      selectedCategories.length === 0
+                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                        : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                    }`}
+                  >
+                    Todas
+                  </button>
+                  {initialCategories.map((category) => {
+                    const selected = selectedCategories.includes(category)
+                    const count = threads.filter((t) => t.category === category).length
+                    return (
+                      <button
+                        key={category}
+                        onClick={() => toggleCategory(category)}
+                        aria-pressed={selected}
+                        className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${
+                          selected
+                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
+                            : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
+                        }`}
+                      >
+                        {selected
+                          ? <Check size={13} className="text-emerald-600" />
+                          : <span className={`size-2 rounded-full ${categoryDot[category]}`} />}
+                        {category}
+                        <span className={`tabular-nums ${selected ? 'text-emerald-600' : 'text-slate-400'}`}>{count}</span>
+                      </button>
+                    )
+                  })}
+                </div>
+
+                <p className="mt-3 text-[11px] text-slate-400" aria-live="polite">
+                  {filteredThreads.length} {filteredThreads.length === 1 ? 'hilo' : 'hilos'} ·{' '}
+                  {selectedCategories.length === 0 ? 'todas las categorías' : selectedCategories.join(', ')}
+                </p>
+              </div>
+            </div>
+          ) : (
+          <>
           <div className="mb-5 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
             <div>
               <p className="text-sm font-medium text-emerald-600">Miércoles, 12 de marzo</p>
@@ -941,6 +1264,8 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
               </button>
             ))}
           </div>
+          </>
+          )}
 
           {/* Quick Create Thread Bar */}
           <button
@@ -1124,8 +1449,18 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
                 <Search size={28} className="mx-auto text-slate-300 mb-2" />
                 <p className="font-bold text-slate-700">No se encontraron hilos</p>
                 <p className="text-xs text-slate-400 mt-1">
-                  Intenta buscar con otros términos o crea una nueva publicación.
+                  {isCareersView && selectedCategories.length > 0
+                    ? 'Aún no hay hilos en las categorías seleccionadas.'
+                    : 'Intenta buscar con otros términos o crea una nueva publicación.'}
                 </p>
+                {isCareersView && selectedCategories.length > 0 && (
+                  <button
+                    onClick={() => setSelectedCategories([])}
+                    className="mt-3 text-xs font-semibold text-emerald-700 hover:underline cursor-pointer"
+                  >
+                    Ver todas las categorías
+                  </button>
+                )}
               </div>
             )}
           </div>
