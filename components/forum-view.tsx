@@ -2,13 +2,16 @@
 
 import { useEffect, useRef, useState } from 'react'
 import {
-  ArrowLeft, AtSign, Bell, BellOff, Bookmark, Check, CheckCheck, ChevronDown, ChevronRight, Circle,
-  Download, Eye, EyeOff, FileText, GraduationCap, Hash, Home, ImagePlus, KeyRound, Link2, LogOut,
-  Megaphone, Menu, MessageCircle, MoreHorizontal, Save, Search, Send, Settings, Share2,
+  AlertCircle, ArrowLeft, AtSign, Bell, BellOff, Bookmark, Check, CheckCheck, ChevronDown, ChevronRight, Circle,
+  Download, Eye, EyeOff, FileText, GraduationCap, Hash, Home, ImagePlus, KeyRound, Link2, Loader2, LogOut,
+  Megaphone, Menu, MessageCircle, MoreHorizontal, Paperclip, Save, Search, Send, Settings, Share2,
   Sliders, Sparkles, ThumbsDown, ThumbsUp, Trash2, TrendingUp,
   X, User
 } from 'lucide-react'
 import { cn } from '@/lib/utils'
+import {
+  careerCode, CommentRow, createClient, FeedThreadRow, NoticeRow, NotificationRow, timeAgo,
+} from '@/lib/supabase'
 import { Avatar, AvatarFallback } from '@/components/ui/avatar'
 import { Badge } from '@/components/ui/badge'
 import { Button, buttonVariants } from '@/components/ui/button'
@@ -38,13 +41,14 @@ interface Notification {
   type: NotificationType
   title: string
   description: string
-  time: string
+  createdAt: string
   read: boolean
-  threadId?: number | null
-  noticeId?: number
+  threadId: number | null
+  noticeId: number | null
 }
 
 interface ThreadComment {
+  id: number
   author: string
   initials: string
   text: string
@@ -52,37 +56,84 @@ interface ThreadComment {
 
 interface Thread {
   id: number
+  authorId: string
   author: string
   initials: string
   career: string
-  time: string
+  role: string
+  createdAt: string
   category: string
   title: string
   body: string
   score: number
   replies: number
   accent: string
-  comments: ThreadComment[]
-  mine?: boolean
   image?: { url: string; name: string }
   tags?: string[]
-  attachment?: { name: string; size: string }
+  attachment?: { name: string; size: string; url: string }
 }
 
-const campusNotices = [
-  {
-    id: 1, title: 'Periodo de reinscripciones', date: 'Publicado hoy',
-    body: 'Del 30 de septiembre al 4 de octubre. Revisa el calendario de tu carrera y confirma tu carga académica en el portal escolar.',
-  },
-  {
-    id: 2, title: 'Becas de movilidad 2025', date: 'Hace 2 días',
-    body: 'Abierta la convocatoria de movilidad estudiantil. Consulta requisitos y fechas de entrega en Servicios Escolares.',
-  },
-  {
-    id: 3, title: 'Cierre temporal de biblioteca', date: 'Hace 2 días',
-    body: 'La biblioteca permanecerá cerrada por mantenimiento. Los préstamos vigentes se extienden automáticamente.',
-  },
-]
+interface CampusNotice {
+  id: number
+  title: string
+  body: string
+  publishedAt: string
+}
+
+const careerAccent: Record<string, string> = {
+  'TI': 'bg-primary/15 text-primary',
+  'MKT': 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-400',
+  'BIO': 'bg-violet-100 dark:bg-violet-500/15 text-violet-700 dark:text-violet-400',
+  'GAST': 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400'
+}
+
+const toThread = (row: FeedThreadRow): Thread => {
+  const career = careerCode[row.author_career] ?? row.author_career
+  return {
+    id: row.id,
+    authorId: row.author_id,
+    author: row.author_name,
+    initials: row.author_initials,
+    career,
+    role: row.author_role,
+    createdAt: row.created_at,
+    category: row.category,
+    title: row.title,
+    body: row.body,
+    score: row.score,
+    replies: row.replies_count,
+    accent: careerAccent[career] || careerAccent.TI,
+    image: row.image_url ? { url: row.image_url, name: row.title } : undefined,
+    tags: row.tags.length ? row.tags : undefined,
+    attachment: row.attachment_url
+      ? { name: row.attachment_name || 'Documento.pdf', size: row.attachment_size || '', url: row.attachment_url }
+      : undefined,
+  }
+}
+
+const toComment = (row: CommentRow): ThreadComment => ({
+  id: row.id,
+  author: row.author?.display_name ?? 'Usuario UTOM',
+  initials: row.author?.initials ?? 'U',
+  text: row.content,
+})
+
+const toNotification = (row: NotificationRow): Notification => ({
+  id: row.id,
+  type: row.type,
+  title: row.title,
+  description: row.description,
+  createdAt: row.created_at,
+  read: row.read,
+  threadId: row.thread_id,
+  noticeId: row.notice_id,
+})
+
+const formatSize = (bytes: number) =>
+  bytes >= 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`
+
+// Ruta dentro del bucket a partir de la URL pública (…/object/public/<bucket>/<ruta>)
+const storagePath = (url: string, bucket: string) => url.split(`/object/public/${bucket}/`)[1]
 
 // El feed ya no muestra pestañas: "Para ti" es la vista normal y las demás
 // se abren desde la barra lateral (guardados, populares) o la navbar (avisos)
@@ -94,8 +145,6 @@ const feedModeLabel: Record<Exclude<FeedTab, 'Para ti'>, string> = {
   'Avisos del campus': 'Avisos oficiales',
 }
 
-const popularTags = ['Inscripciones', 'Residencias', 'Hackathon', 'Cafetería', 'ServicioSocial']
-
 // Categoría del foro asociada a cada carrera (para priorizar "Para ti")
 const careerCategory: Record<string, string> = {
   TI: 'TI', BIO: 'Biotecnología', MKT: 'Mercadotecnia', GAST: 'Gastronomía',
@@ -103,6 +152,7 @@ const careerCategory: Record<string, string> = {
 
 const TRENDING_SCORE = 60
 const IMAGE_MAX_MB = 5
+const PDF_MAX_MB = 20
 const TAGS_MAX = 5
 
 const initialCategories = [
@@ -159,17 +209,21 @@ const isNavSection = (value: string): value is NavSection =>
 
 interface ForumViewProps {
   user: UserProfile
+  onUserChange: (user: UserProfile) => void
   onLogout: () => void
 }
 
-export default function ForumView({ user, onLogout }: ForumViewProps) {
+export default function ForumView({ user, onUserChange, onLogout }: ForumViewProps) {
+  const supabase = createClient()
   const [activeTab, setActiveTab] = useState<FeedTab>('Para ti')
-  const [openThread, setOpenThread] = useState<number | null>(1)
+  const [openThread, setOpenThread] = useState<number | null>(null)
   const [saved, setSaved] = useState<number[]>([])
+  // Voto actual del usuario por hilo (1, -1); el score de cada hilo ya lo incluye
   const [votes, setVotes] = useState<Record<number, number>>({})
   const [modal, setModal] = useState(false)
   const [mobileMenu, setMobileMenu] = useState(false)
-  const [currentView, setCurrentView] = useState<'feed' | 'settings'>('feed')
+  // Primer acceso con la matrícula como contraseña: se abre Ajustes para cambiarla
+  const [currentView, setCurrentView] = useState<'feed' | 'settings'>(user.mustChangePassword ? 'settings' : 'feed')
   const [navSection, setNavSection] = useState<NavSection>('feed')
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
 
@@ -233,29 +287,55 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
 
   // Settings view state
   const [settingsName, setSettingsName] = useState(user.name)
-  const [settingsBio, setSettingsBio] = useState('Estudiante activo en la comunidad Wiki UTOM')
-  const [notifReplies, setNotifReplies] = useState(true)
-  const [notifNotices, setNotifNotices] = useState(true)
-  const [notifDigest, setNotifDigest] = useState(false)
+  const [settingsBio, setSettingsBio] = useState(user.bio)
+  const [notifReplies, setNotifReplies] = useState(user.notifReplies)
+  const [notifNotices, setNotifNotices] = useState(user.notifNotices)
+  const [notifDigest, setNotifDigest] = useState(user.notifDigest)
   const [themePreference, setThemePreference] = useState<'light' | 'system' | 'dark'>('system')
   const [savedSuccess, setSavedSuccess] = useState(false)
+  const [savingSettings, setSavingSettings] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
 
-  // Últimos ajustes guardados: "Guardar" los confirma y "Cancelar" vuelve a ellos
-  const [savedSettings, setSavedSettings] = useState({
+  // Últimos ajustes guardados en Supabase: "Guardar" los confirma y "Cancelar" vuelve a ellos
+  const savedSettings = {
     name: user.name,
-    bio: 'Estudiante activo en la comunidad Wiki UTOM',
-    notifReplies: true,
-    notifNotices: true,
-    notifDigest: false,
-  })
-  const displayName = savedSettings.name
-  const displayInitials = getInitials(displayName) || user.initials
+    bio: user.bio,
+    notifReplies: user.notifReplies,
+    notifNotices: user.notifNotices,
+    notifDigest: user.notifDigest,
+  }
+  const displayName = user.name
+  const displayInitials = user.initials
 
-  const handleSaveSettings = () => {
+  const handleSaveSettings = async () => {
     if (nameError) return
+    const changes = {
+      display_name: trimmedName,
+      initials: getInitials(trimmedName) || user.initials,
+      bio: settingsBio.trim(),
+      notif_replies: notifReplies,
+      notif_notices: notifNotices,
+      notif_digest: notifDigest,
+    }
+    setSavingSettings(true)
+    const { error } = await supabase.from('profiles').update(changes).eq('id', user.id)
+    setSavingSettings(false)
+    if (error) {
+      showToast('No se pudieron guardar los ajustes')
+      return
+    }
     setSettingsName(trimmedName)
-    setSavedSettings({ name: trimmedName, bio: settingsBio.trim(), notifReplies, notifNotices, notifDigest })
+    onUserChange({
+      ...user,
+      name: changes.display_name,
+      initials: changes.initials,
+      bio: changes.bio,
+      notifReplies, notifNotices, notifDigest,
+    })
+    // Los hilos y comentarios propios ya cargados muestran el nombre nuevo
+    setThreads((current) => current.map((t) =>
+      t.authorId === user.id ? { ...t, author: changes.display_name, initials: changes.initials } : t
+    ))
     setSavedSuccess(true)
     setTimeout(() => setSavedSuccess(false), 3000)
     showToast('Ajustes guardados')
@@ -283,17 +363,40 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
   const [confirmPassword, setConfirmPassword] = useState('')
   const [showPasswords, setShowPasswords] = useState(false)
   const [passwordSuccess, setPasswordSuccess] = useState(false)
+  const [passwordError, setPasswordError] = useState('')
+  const [changingPassword, setChangingPassword] = useState(false)
 
   const passwordChecks = passwordRules.map((rule) => ({ ...rule, passed: rule.test(newPassword) }))
   const passwordSyntaxValid = passwordChecks.every((rule) => rule.passed)
   const passwordReused = newPassword.length > 0 && newPassword === currentPassword
   const passwordsMatch = confirmPassword.length > 0 && confirmPassword === newPassword
   const canChangePassword =
-    currentPassword.length > 0 && passwordSyntaxValid && !passwordReused && passwordsMatch
+    currentPassword.length > 0 && passwordSyntaxValid && !passwordReused && passwordsMatch && !changingPassword
 
-  const handleChangePassword = (e: React.FormEvent) => {
+  const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!canChangePassword) return
+    setPasswordError('')
+    setChangingPassword(true)
+
+    // Supabase no pide la contraseña actual: se verifica volviendo a iniciar sesión con ella
+    const { error: verifyError } = await supabase.auth.signInWithPassword({ email: user.email, password: currentPassword })
+    if (verifyError) {
+      setChangingPassword(false)
+      setPasswordError('La contraseña actual no es correcta.')
+      return
+    }
+    const { error } = await supabase.auth.updateUser({ password: newPassword })
+    if (error) {
+      setChangingPassword(false)
+      setPasswordError('No se pudo actualizar la contraseña. Inténtalo de nuevo.')
+      return
+    }
+    if (user.mustChangePassword) {
+      await supabase.from('profiles').update({ must_change_password: false }).eq('id', user.id)
+      onUserChange({ ...user, mustChangePassword: false })
+    }
+    setChangingPassword(false)
     setCurrentPassword('')
     setNewPassword('')
     setConfirmPassword('')
@@ -305,33 +408,7 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
   // Notifications state
   const [notifOpen, setNotifOpen] = useState(false)
   const [notifFilter, setNotifFilter] = useState<'all' | 'unread'>('all')
-  const [notifications, setNotifications] = useState<Notification[]>([
-    {
-      id: 1, type: 'reply', title: 'Nueva respuesta en tu hilo',
-      description: 'Diego Ramírez comentó: "La recomiendo mucho, el proyecto final es una app completa."',
-      time: 'hace 12 min', read: false, threadId: 1,
-    },
-    {
-      id: 2, type: 'notice', title: 'Aviso: Periodo de reinscripciones',
-      description: 'Del 30 de septiembre al 4 de octubre. Revisa el calendario de tu carrera.',
-      time: 'hace 1 h', read: false, threadId: null, noticeId: 1,
-    },
-    {
-      id: 3, type: 'mention', title: 'Te mencionaron en un hilo',
-      description: 'Carlos Méndez te etiquetó en "Hackathon UTOM 2025".',
-      time: 'hace 3 h', read: false, threadId: 2,
-    },
-    {
-      id: 4, type: 'trending', title: 'Tu hilo está en tendencia',
-      description: '"Material para el examen de microbiología" superó los 50 votos.',
-      time: 'ayer', read: true, threadId: 3,
-    },
-    {
-      id: 5, type: 'reply', title: 'Nueva respuesta en material de estudio',
-      description: 'Paola Vega preguntó por las prácticas previas de la muestra.',
-      time: 'ayer', read: true, threadId: 4,
-    },
-  ])
+  const [notifications, setNotifications] = useState<Notification[]>([])
 
   // Tema: persistido en localStorage y con soporte para "Automático"
   const [systemDark, setSystemDark] = useState(false)
@@ -368,59 +445,124 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
   const [newTitle, setNewTitle] = useState('')
   const [newCategory, setNewCategory] = useState(initialCategories[0])
   const [newBody, setNewBody] = useState('')
-  const [newImage, setNewImage] = useState<{ url: string; name: string } | null>(null)
+  const [newImage, setNewImage] = useState<{ url: string; name: string; file: File } | null>(null)
+  const [newPdf, setNewPdf] = useState<File | null>(null)
   const [newTags, setNewTags] = useState<string[]>([])
   const [tagDraft, setTagDraft] = useState('')
   const [showTagInput, setShowTagInput] = useState(false)
+  const [publishing, setPublishing] = useState(false)
   const imageInputRef = useRef<HTMLInputElement>(null)
+  const pdfInputRef = useRef<HTMLInputElement>(null)
 
-  const [threads, setThreads] = useState<Thread[]>([
-    {
-      id: 1, author: 'Mariana López', initials: 'ML', career: 'TI', time: 'hace 2h', category: 'TI',
-      title: '¿Alguien ya tomó la materia de Desarrollo Web?',
-      body: 'Estoy armando mi horario para el próximo cuatrimestre y me gustaría conocer su experiencia con la materia. ¿Qué proyectos hacen y qué tan pesada es la carga?',
-      score: 38, replies: 14, accent: 'bg-primary/15 text-primary',
-      comments: [
-        { author: 'Diego Ramírez', initials: 'DR', text: 'La recomiendo mucho. El proyecto final es una app completa y el profe explica súper bien.' },
-        { author: 'Sofía Cruz', initials: 'SC', text: 'Lleva tiempo, pero aprendes muchísimo. Ve preparando JavaScript desde antes.' }
-      ],
-    },
-    {
-      id: 2, author: 'Carlos Méndez', initials: 'CM', career: 'MKT', time: 'hace 4h', category: 'Mercadotecnia',
-      title: 'Campaña y pitch para el Hackathon UTOM 2025',
-      body: 'Buscamos integrar al equipo a compañeros de Mercadotecnia y diseño para la estrategia de difusión y pitch comercial. El registro cierra este viernes.',
-      score: 72, replies: 21, accent: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-400',
-      comments: [
-        { author: 'Ana Torres', initials: 'AT', text: '¡Me interesa colaborar en la propuesta de valor y presentación!' }
-      ],
-    },
-    {
-      id: 3, author: 'Valeria Núñez', initials: 'VN', career: 'BIO', time: 'ayer', category: 'Biotecnología',
-      title: 'Material para el examen de microbiología',
-      body: 'Subí mis apuntes y una guía de estudio que nos compartió la maestra. Ojalá les sirva para repasar antes del examen del jueves.',
-      score: 54, replies: 9, accent: 'bg-violet-100 dark:bg-violet-500/15 text-violet-700 dark:text-violet-400',
-      comments: [],
-      attachment: { name: 'Guía_microbiología.pdf', size: '2.4 MB' },
-    },
-    {
-      id: 4, author: 'Rodrigo Morales', initials: 'RM', career: 'GAST', time: 'ayer', category: 'Gastronomía',
-      title: 'Muestra gastronómica regional UTOM: bases y registro',
-      body: 'Comparto las bases para participar en la muestra de cocina tradicional del próximo mes. Pueden registrar equipos de hasta 3 alumnos.',
-      score: 46, replies: 8, accent: 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400',
-      comments: [
-        { author: 'Paola Vega', initials: 'PV', text: '¿En qué cocina-taller se realizarán las prácticas previas?' }
-      ],
-    },
-  ])
+  // Datos reales de Supabase
+  const [threads, setThreads] = useState<Thread[]>([])
+  const [comments, setComments] = useState<Record<number, ThreadComment[]>>({})
+  const [campusNotices, setCampusNotices] = useState<CampusNotice[]>([])
+  const [loading, setLoading] = useState(true)
+  const [loadError, setLoadError] = useState(false)
+
+  const loadData = async () => {
+    setLoading(true)
+    setLoadError(false)
+    const [threadsRes, votesRes, savedRes, noticesRes, notificationsRes] = await Promise.all([
+      supabase.from('feed_threads').select('*').order('created_at', { ascending: false }),
+      supabase.from('thread_votes').select('thread_id, vote_type').eq('user_id', user.id),
+      supabase.from('saved_threads').select('thread_id').eq('user_id', user.id),
+      supabase.from('notices').select('id, title, body, published_at').order('published_at', { ascending: false }),
+      supabase.from('notifications').select('*').order('created_at', { ascending: false }).limit(50),
+    ])
+    setLoading(false)
+    if (threadsRes.error || votesRes.error || savedRes.error || noticesRes.error || notificationsRes.error) {
+      setLoadError(true)
+      return
+    }
+    setThreads((threadsRes.data as FeedThreadRow[]).map(toThread))
+    setVotes(Object.fromEntries(votesRes.data.map((v) => [v.thread_id, v.vote_type])))
+    setSaved(savedRes.data.map((s) => s.thread_id))
+    setCampusNotices((noticesRes.data as NoticeRow[]).map((n) => ({
+      id: n.id, title: n.title, body: n.body, publishedAt: n.published_at,
+    })))
+    setNotifications((notificationsRes.data as NotificationRow[]).map(toNotification))
+  }
+
+  useEffect(() => {
+    loadData()
+  }, [user.id])
+
+  const loadComments = async (threadId: number) => {
+    const { data, error } = await supabase
+      .from('comments')
+      .select('*, author:profiles(display_name, initials)')
+      .eq('thread_id', threadId)
+      .order('created_at')
+    if (!error) setComments((current) => ({ ...current, [threadId]: (data as CommentRow[]).map(toComment) }))
+  }
+
+  // Los comentarios de un hilo se cargan la primera vez que se abre
+  useEffect(() => {
+    if (openThread !== null && !comments[openThread]) loadComments(openThread)
+  }, [openThread])
+
+  // Tiempo real: comentarios de otros usuarios y notificaciones nuevas
+  useEffect(() => {
+    const channel = supabase
+      .channel(`forum-${user.id}`)
+      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'comments' }, async (payload) => {
+        const row = payload.new as Omit<CommentRow, 'author'>
+        if (row.author_id === user.id) return // los propios ya se añadieron al enviarlos
+        const { data: author } = await supabase
+          .from('profiles').select('display_name, initials').eq('id', row.author_id).single()
+        setThreads((current) => current.map((t) => t.id === row.thread_id ? { ...t, replies: t.replies + 1 } : t))
+        setComments((current) => current[row.thread_id]
+          ? { ...current, [row.thread_id]: [...current[row.thread_id], toComment({ ...row, author })] }
+          : current)
+      })
+      .on('postgres_changes', {
+        event: 'INSERT', schema: 'public', table: 'notifications', filter: `user_id=eq.${user.id}`,
+      }, (payload) => {
+        setNotifications((current) => [toNotification(payload.new as NotificationRow), ...current])
+      })
+      .subscribe()
+    return () => {
+      supabase.removeChannel(channel)
+    }
+  }, [user.id])
 
   const [newCommentText, setNewCommentText] = useState<Record<number, string>>({})
 
-  const toggleVote = (id: number, amount: number) =>
-    setVotes((current) => ({ ...current, [id]: current[id] === amount ? 0 : amount }))
+  const toggleVote = async (id: number, amount: number) => {
+    const previous = votes[id] || 0
+    const next = previous === amount ? 0 : amount
+    const applyVote = (from: number, to: number) => {
+      setVotes((current) => ({ ...current, [id]: to }))
+      setThreads((current) => current.map((t) => t.id === id ? { ...t, score: t.score - from + to } : t))
+    }
+    applyVote(previous, next)
+    // Sin upsert: el usuario solo tiene permiso para actualizar vote_type, no thread_id
+    const votesTable = supabase.from('thread_votes')
+    const { error } = next === 0
+      ? await votesTable.delete().eq('thread_id', id).eq('user_id', user.id)
+      : previous === 0
+        ? await votesTable.insert({ thread_id: id, vote_type: next })
+        : await votesTable.update({ vote_type: next }).eq('thread_id', id).eq('user_id', user.id)
+    if (error) {
+      applyVote(next, previous)
+      showToast('No se pudo registrar tu voto')
+    }
+  }
 
-  const toggleSave = (id: number) => {
-    showToast(saved.includes(id) ? 'Hilo quitado de tus guardados' : 'Hilo guardado')
-    setSaved((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
+  const toggleSave = async (id: number) => {
+    const wasSaved = saved.includes(id)
+    setSaved((current) => wasSaved ? current.filter((item) => item !== id) : [...current, id])
+    const { error } = wasSaved
+      ? await supabase.from('saved_threads').delete().eq('thread_id', id).eq('user_id', user.id)
+      : await supabase.from('saved_threads').insert({ thread_id: id })
+    if (error) {
+      setSaved((current) => wasSaved ? [...current, id] : current.filter((item) => item !== id))
+      showToast('No se pudo actualizar tus guardados')
+      return
+    }
+    showToast(wasSaved ? 'Hilo quitado de tus guardados' : 'Hilo guardado')
   }
 
   const threadUrl = (id: number) => `${window.location.origin}${window.location.pathname}#thread-${id}`
@@ -446,9 +588,20 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
     copyThreadLink(thread.id)
   }
 
-  const deleteThread = (thread: Thread) => {
+  const deleteThread = async (thread: Thread) => {
     if (!window.confirm(`¿Eliminar el hilo "${thread.title}"? Esta acción no se puede deshacer.`)) return
-    if (thread.image) URL.revokeObjectURL(thread.image.url)
+    const { error } = await supabase.from('threads').delete().eq('id', thread.id)
+    if (error) {
+      showToast('No se pudo eliminar el hilo')
+      return
+    }
+    // Solo el autor puede borrar sus archivos (políticas de storage)
+    if (thread.authorId === user.id) {
+      const imagePath = thread.image && storagePath(thread.image.url, 'thread-images')
+      const pdfPath = thread.attachment && storagePath(thread.attachment.url, 'materials')
+      if (imagePath) supabase.storage.from('thread-images').remove([imagePath])
+      if (pdfPath) supabase.storage.from('materials').remove([pdfPath])
+    }
     setThreads((current) => current.filter((t) => t.id !== thread.id))
     setSaved((current) => current.filter((id) => id !== thread.id))
     showToast('Hilo eliminado')
@@ -479,18 +632,22 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
     ? enabledNotifications.filter((n) => !n.read)
     : enabledNotifications
 
-  const markAllNotificationsRead = () =>
-    setNotifications((current) =>
-      current.map((n) => (n.read || !notificationEnabled[n.type] ? n : { ...n, read: true }))
-    )
+  const markAllNotificationsRead = () => {
+    const ids = enabledNotifications.filter((n) => !n.read).map((n) => n.id)
+    setNotifications((current) => current.map((n) => (ids.includes(n.id) ? { ...n, read: true } : n)))
+    supabase.from('notifications').update({ read: true }).in('id', ids).then()
+  }
 
-  const dismissNotification = (id: number) =>
+  const dismissNotification = (id: number) => {
     setNotifications((current) => current.filter((n) => n.id !== id))
+    supabase.from('notifications').delete().eq('id', id).then()
+  }
 
   const handleNotificationClick = (notification: Notification) => {
     setNotifications((current) =>
       current.map((item) => (item.id === notification.id ? { ...item, read: true } : item))
     )
+    if (!notification.read) supabase.from('notifications').update({ read: true }).eq('id', notification.id).then()
     if (notification.threadId) openThreadInFeed(notification.threadId)
     else if (notification.noticeId) openNoticeInFeed(notification.noticeId)
     setNotifOpen(false)
@@ -516,45 +673,76 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
     }
   }
 
-  const handleAddThread = (e: React.FormEvent) => {
+  // Sube un archivo a <bucket>/<id del usuario>/... y devuelve su URL pública
+  const uploadFile = async (bucket: 'thread-images' | 'materials', file: File) => {
+    const extension = file.name.includes('.') ? file.name.split('.').pop()!.toLowerCase() : ''
+    const path = `${user.id}/${crypto.randomUUID()}${extension ? `.${extension}` : ''}`
+    const { error } = await supabase.storage.from(bucket).upload(path, file, { contentType: file.type })
+    if (error) throw error
+    return supabase.storage.from(bucket).getPublicUrl(path).data.publicUrl
+  }
+
+  const handleAddThread = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!newTitle.trim() || !newBody.trim()) return
+    if (!newTitle.trim() || !newBody.trim() || publishing) return
+    setPublishing(true)
 
-    const careerAccentMap: Record<string, string> = {
-      'TI': 'bg-primary/15 text-primary',
-      'MKT': 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-400',
-      'BIO': 'bg-violet-100 dark:bg-violet-500/15 text-violet-700 dark:text-violet-400',
-      'GAST': 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400'
+    try {
+      const imageUrl = newImage ? await uploadFile('thread-images', newImage.file) : null
+      const pdfUrl = newPdf ? await uploadFile('materials', newPdf) : null
+
+      const { data: inserted, error } = await supabase
+        .from('threads')
+        .insert({
+          category: newCategory,
+          title: newTitle.trim(),
+          body: newBody.trim(),
+          tags: newTags,
+          image_url: imageUrl,
+          attachment_url: pdfUrl,
+          attachment_name: newPdf?.name ?? null,
+          attachment_size: newPdf ? formatSize(newPdf.size) : null,
+        })
+        .select('id')
+        .single()
+      if (error) throw error
+
+      const { data: created, error: feedError } = await supabase
+        .from('feed_threads').select('*').eq('id', inserted.id).single()
+      if (feedError) throw feedError
+      setThreads((current) => [toThread(created as FeedThreadRow), ...current])
+    } catch {
+      setPublishing(false)
+      showToast('No se pudo publicar el hilo')
+      return
     }
 
-    const created: Thread = {
-      id: Date.now(),
-      author: displayName,
-      initials: displayInitials,
-      career: user.career || 'UTOM',
-      time: 'justo ahora',
-      category: newCategory,
-      title: newTitle.trim(),
-      body: newBody.trim(),
-      score: 1,
-      replies: 0,
-      accent: careerAccentMap[user.career] || 'bg-primary/15 text-primary',
-      comments: [],
-      mine: true,
-      image: newImage || undefined,
-      tags: newTags.length ? newTags : undefined,
-    }
-
-    setThreads([created, ...threads])
+    setPublishing(false)
     setNewTitle('')
     setNewBody('')
-    setNewImage(null)
+    removeNewImage()
+    setNewPdf(null)
     setNewTags([])
     setTagDraft('')
     setShowTagInput(false)
     setModal(false)
     selectTab('Para ti')
     showToast('Hilo publicado')
+  }
+
+  const handlePdfSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (file.type !== 'application/pdf') {
+      showToast('Selecciona un archivo PDF')
+      return
+    }
+    if (file.size > PDF_MAX_MB * 1024 * 1024) {
+      showToast(`El PDF supera los ${PDF_MAX_MB} MB`)
+      return
+    }
+    setNewPdf(file)
   }
 
   const handleImageSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -570,7 +758,7 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
       return
     }
     if (newImage) URL.revokeObjectURL(newImage.url)
-    setNewImage({ url: URL.createObjectURL(file), name: file.name })
+    setNewImage({ url: URL.createObjectURL(file), name: file.name, file })
   }
 
   const removeNewImage = () => {
@@ -589,31 +777,27 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
     setNewTags([...newTags, tag])
   }
 
-  const handleAddComment = (threadId: number) => {
+  const handleAddComment = async (threadId: number) => {
     const text = newCommentText[threadId]?.trim()
     if (!text) return
 
-    setThreads((current) =>
-      current.map((t) => {
-        if (t.id === threadId) {
-          return {
-            ...t,
-            replies: t.replies + 1,
-            comments: [
-              ...t.comments,
-              {
-                author: displayName,
-                initials: displayInitials,
-                text
-              }
-            ]
-          }
-        }
-        return t
-      })
-    )
-
     setNewCommentText((current) => ({ ...current, [threadId]: '' }))
+    const { data, error } = await supabase
+      .from('comments')
+      .insert({ thread_id: threadId, content: text })
+      .select('id')
+      .single()
+    if (error) {
+      setNewCommentText((current) => ({ ...current, [threadId]: text }))
+      showToast('No se pudo enviar tu respuesta')
+      return
+    }
+
+    setThreads((current) => current.map((t) => t.id === threadId ? { ...t, replies: t.replies + 1 } : t))
+    setComments((current) => ({
+      ...current,
+      [threadId]: [...(current[threadId] || []), { id: data.id, author: displayName, initials: displayInitials, text }],
+    }))
   }
 
   const isCareersView = activeNav === 'categories'
@@ -623,7 +807,7 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
       current.includes(category) ? current.filter((item) => item !== category) : [...current, category]
     )
 
-  const threadScore = (t: Thread) => t.score + (votes[t.id] || 0)
+  const threadScore = (t: Thread) => t.score
   const isNoticesTab = !isCareersView && activeTab === 'Avisos del campus'
 
   const filteredThreads = threads.filter((t) => {
@@ -648,6 +832,13 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
   } else if (!isCareersView && activeTab === 'En tendencia') {
     filteredThreads.sort((a, b) => threadScore(b) - threadScore(a))
   }
+
+  // Temas populares: las etiquetas más usadas en los hilos publicados
+  const tagCounts = new Map<string, number>()
+  threads.forEach((t) => t.tags?.forEach((tag) => tagCounts.set(tag, (tagCounts.get(tag) || 0) + 1)))
+  const popularTags = [...tagCounts.entries()].sort((a, b) => b[1] - a[1]).slice(0, 8).map(([tag]) => tag)
+
+  const today = new Date().toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' })
 
 
   // Cierra el menú móvil con Escape (diálogos, menús y popovers ya lo gestionan solos)
@@ -784,7 +975,7 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
                               {!notification.read && <span className="size-1.5 shrink-0 rounded-full bg-primary" />}
                             </div>
                             <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{notification.description}</p>
-                            <span className="mt-1 block text-[11px] text-muted-foreground">{notification.time}</span>
+                            <span className="mt-1 block text-[11px] text-muted-foreground">{timeAgo(notification.createdAt)}</span>
                           </div>
                         </button>
                         <Button
@@ -835,7 +1026,7 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
                   <div className="min-w-0 flex-1">
                     <p className="truncate text-sm font-medium">{displayName}</p>
                     <p className="truncate text-xs text-muted-foreground">{user.email}</p>
-                    <Badge variant="secondary" className="mt-1.5">{user.career} · Estudiante UTOM</Badge>
+                    <Badge variant="secondary" className="mt-1.5">{user.career} · {user.role}</Badge>
                   </div>
                 </div>
                 <DropdownMenuSeparator />
@@ -969,6 +1160,16 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
               )}
             </div>
 
+            {user.mustChangePassword && (
+              <div role="alert" className="mb-6 flex items-start gap-2.5 rounded-lg border border-amber-500/30 bg-amber-50 p-3.5 text-xs text-amber-800 dark:bg-amber-500/10 dark:text-amber-300">
+                <AlertCircle className="mt-0.5 size-4 shrink-0" />
+                <span>
+                  Estás usando tu matrícula como contraseña temporal. Cámbiala en la sección{' '}
+                  <span className="font-medium">Cambiar contraseña</span> para proteger tu cuenta.
+                </span>
+              </div>
+            )}
+
             <div className="flex flex-col gap-6">
               {/* Tarjeta 1: Perfil del estudiante */}
               <Card>
@@ -1059,13 +1260,23 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
                     </legend>
 
                     <div className="grid gap-2">
+                      <Label htmlFor="profile-full-name">Nombre oficial</Label>
+                      <Input id="profile-full-name" name="fullName" type="text" readOnly value={user.fullName} className={readOnlyInputClass} />
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="profile-student-id">Matrícula</Label>
+                      <Input id="profile-student-id" name="studentId" type="text" readOnly value={user.studentId} className={readOnlyInputClass} />
+                    </div>
+
+                    <div className="grid gap-2">
                       <Label htmlFor="profile-email">Correo institucional</Label>
                       <Input id="profile-email" name="email" type="email" readOnly value={user.email} className={readOnlyInputClass} />
                     </div>
 
                     <div className="grid gap-2">
                       <Label htmlFor="profile-role">Rol institucional</Label>
-                      <Input id="profile-role" name="role" type="text" readOnly value={user.role || 'Estudiante UTOM'} className={readOnlyInputClass} />
+                      <Input id="profile-role" name="role" type="text" readOnly value={user.role} className={readOnlyInputClass} />
                     </div>
 
                     <div className="grid gap-2 sm:col-span-2">
@@ -1206,8 +1417,13 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
                       <Check className="size-4" /> Contraseña actualizada
                     </span>
                   )}
+                  {passwordError && (
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-destructive" role="alert">
+                      <AlertCircle className="size-4" /> {passwordError}
+                    </span>
+                  )}
                   <Button type="submit" disabled={!canChangePassword}>
-                    <KeyRound /> Actualizar contraseña
+                    {changingPassword ? <Loader2 className="animate-spin" /> : <KeyRound />} Actualizar contraseña
                   </Button>
                 </CardFooter>
               </Card>
@@ -1281,8 +1497,8 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
                 <Button type="button" variant="outline" size="lg" onClick={handleCancelSettings}>
                   Cancelar
                 </Button>
-                <Button type="button" size="lg" disabled={!!nameError} onClick={handleSaveSettings}>
-                  <Save /> Guardar ajustes
+                <Button type="button" size="lg" disabled={!!nameError || savingSettings} onClick={handleSaveSettings}>
+                  {savingSettings ? <Loader2 className="animate-spin" /> : <Save />} Guardar ajustes
                 </Button>
               </div>
             </div>
@@ -1349,7 +1565,7 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
           <>
           <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-sm font-medium text-primary">Miércoles, 12 de marzo</p>
+              <p className="text-sm font-medium text-primary first-letter:uppercase">{today}</p>
               <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">Tu comunidad, al día.</h1>
               <p className="mt-1 text-sm text-muted-foreground">Descubre lo que está pasando en UTOM.</p>
             </div>
@@ -1374,6 +1590,15 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
           {isNoticesTab ? (
           /* Avisos oficiales del campus */
           <div className="flex flex-col gap-3">
+            {!loading && campusNotices.length === 0 && (
+              <Card>
+                <CardContent className="flex flex-col items-center py-8 text-center">
+                  <Megaphone className="mb-2 size-7 text-muted-foreground/60" />
+                  <p className="font-medium">Sin avisos oficiales</p>
+                  <p className="mt-1 text-xs text-muted-foreground">Aquí aparecerán los avisos que publique la administración.</p>
+                </CardContent>
+              </Card>
+            )}
             {campusNotices.map((notice) => {
               const expanded = openNotice === notice.id
               return (
@@ -1393,12 +1618,12 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
                         <h2 className="text-sm font-medium sm:text-base">{notice.title}</h2>
                         <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">OFICIAL</Badge>
                       </div>
-                      <span className="mt-0.5 block text-xs text-muted-foreground">{notice.date}</span>
+                      <span className="mt-0.5 block text-xs text-muted-foreground">{timeAgo(notice.publishedAt)}</span>
                     </div>
                     <ChevronDown className={cn('mt-1 size-[18px] shrink-0 text-muted-foreground transition-transform', expanded && 'rotate-180')} />
                   </button>
                   {expanded && (
-                    <CardContent id={`notice-body-${notice.id}`} className="border-t py-4 leading-6 text-muted-foreground">
+                    <CardContent id={`notice-body-${notice.id}`} className="border-t py-4 leading-6 whitespace-pre-line text-muted-foreground">
                       {notice.body}
                     </CardContent>
                   )}
@@ -1452,7 +1677,21 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
 
           {/* Lista de hilos */}
           <div className="flex flex-col gap-4">
-            {filteredThreads.map((thread) => (
+            {loading && (
+              <div className="flex items-center justify-center gap-2 py-10 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" /> Cargando hilos...
+              </div>
+            )}
+            {loadError && (
+              <Card>
+                <CardContent className="flex flex-col items-center py-8 text-center">
+                  <AlertCircle className="mb-2 size-7 text-destructive" />
+                  <p className="font-medium">No se pudieron cargar los datos</p>
+                  <Button variant="link" size="sm" className="mt-2" onClick={loadData}>Reintentar</Button>
+                </CardContent>
+              </Card>
+            )}
+            {!loading && !loadError && filteredThreads.map((thread) => (
               <Card key={thread.id} id={`thread-${thread.id}`} className="scroll-mt-24 transition-shadow hover:shadow-sm">
                 <CardHeader>
                   <div className="flex items-start gap-3">
@@ -1463,9 +1702,9 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                         <span className="text-sm font-medium">{thread.author}</span>
                         <Badge variant="secondary" className={cn('rounded-md', thread.accent)}>{thread.career}</Badge>
-                        <span className="text-xs text-muted-foreground">· {thread.time}</span>
+                        <span className="text-xs text-muted-foreground">· {timeAgo(thread.createdAt)}</span>
                       </div>
-                      <div className="mt-0.5 text-xs text-muted-foreground">Estudiante UTOM</div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">{thread.role}</div>
                     </div>
                   </div>
                   <CardAction>
@@ -1480,7 +1719,7 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
                         <DropdownMenuItem onClick={() => toggleSave(thread.id)}>
                           <Bookmark /> {saved.includes(thread.id) ? 'Quitar de guardados' : 'Guardar hilo'}
                         </DropdownMenuItem>
-                        {(thread.mine || thread.author === user.name) && (
+                        {(thread.authorId === user.id || user.isAdmin) && (
                           <>
                             <DropdownMenuSeparator />
                             <DropdownMenuItem variant="destructive" onClick={() => deleteThread(thread)}>
@@ -1528,19 +1767,22 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
                       <div className="flex size-9 items-center justify-center rounded-lg bg-violet-100 text-violet-600 dark:bg-violet-500/15 dark:text-violet-400">
                         <FileText className="size-[18px]" />
                       </div>
-                      <div>
-                        <div className="text-sm font-medium">{thread.attachment.name}</div>
-                        <div className="text-xs text-muted-foreground">{thread.attachment.size} · Documento de estudio</div>
+                      <div className="min-w-0">
+                        <div className="truncate text-sm font-medium">{thread.attachment.name}</div>
+                        <div className="text-xs text-muted-foreground">
+                          {thread.attachment.size ? `${thread.attachment.size} · ` : ''}Documento de estudio
+                        </div>
                       </div>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        className="ml-auto"
-                        onClick={() => showToast('Archivo de demostración: aún no hay un documento real para descargar')}
+                      <a
+                        href={thread.attachment.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        download={thread.attachment.name}
+                        className={cn(buttonVariants({ variant: 'ghost', size: 'icon-sm' }), 'ml-auto')}
                         aria-label={`Descargar ${thread.attachment.name}`}
                       >
                         <Download />
-                      </Button>
+                      </a>
                     </div>
                   )}
                 </CardContent>
@@ -1601,8 +1843,13 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
                   {openThread === thread.id && (
                     <div className="border-t bg-muted/40 px-4 py-4">
                       <div className="flex flex-col gap-3">
-                        {thread.comments.map((comment, idx) => (
-                          <div key={idx} className="flex gap-3">
+                        {!comments[thread.id] && thread.replies > 0 && (
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                            <Loader2 className="size-3.5 animate-spin" /> Cargando respuestas...
+                          </div>
+                        )}
+                        {(comments[thread.id] || []).map((comment) => (
+                          <div key={comment.id} className="flex gap-3">
                             <Avatar>
                               <AvatarFallback className="bg-card text-[10px] font-semibold">{comment.initials}</AvatarFallback>
                             </Avatar>
@@ -1617,7 +1864,7 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
                         ))}
                       </div>
 
-                      <div className="mt-4 flex items-center gap-2">
+                      <div className={cn('flex items-center gap-2', (comments[thread.id]?.length || thread.replies > 0) && 'mt-4')}>
                         <Label htmlFor={`reply-input-${thread.id}`} className="sr-only">Responder a este hilo</Label>
                         <Input
                           id={`reply-input-${thread.id}`}
@@ -1639,7 +1886,7 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
               </Card>
             ))}
 
-            {filteredThreads.length === 0 && (
+            {!loading && !loadError && filteredThreads.length === 0 && (
               <Card>
                 <CardContent className="flex flex-col items-center py-8 text-center">
                   <Search className="mb-2 size-7 text-muted-foreground/60" />
@@ -1682,7 +1929,10 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
                 </CardAction>
               </CardHeader>
               <CardContent className="flex flex-col gap-1">
-                {campusNotices.map((notice, i) => (
+                {campusNotices.length === 0 && (
+                  <p className="text-xs text-muted-foreground">Todavía no hay avisos publicados.</p>
+                )}
+                {campusNotices.slice(0, 3).map((notice, i) => (
                   <button
                     key={notice.id}
                     type="button"
@@ -1692,7 +1942,7 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
                     <span className={cn('mt-1.5 size-1.5 shrink-0 rounded-full', i === 0 ? 'bg-amber-500' : 'bg-muted-foreground/40')} />
                     <span className="text-xs leading-5 font-medium">
                       {notice.title}
-                      <span className="block text-[11px] font-normal text-muted-foreground">{notice.date}</span>
+                      <span className="block text-[11px] font-normal text-muted-foreground">{timeAgo(notice.publishedAt)}</span>
                     </span>
                     <ChevronRight className="mt-1 ml-auto size-3.5 shrink-0 text-muted-foreground/60 group-hover:text-primary" />
                   </button>
@@ -1703,20 +1953,22 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
               </CardContent>
             </Card>
 
-            <Card size="sm">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <TrendingUp className="size-4 text-primary" /> Temas populares
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="flex flex-wrap gap-2">
-                {popularTags.map((tag) => (
-                  <Button key={tag} variant="secondary" size="xs" className="rounded-full" onClick={() => searchFor(tag)}>
-                    #{tag}
-                  </Button>
-                ))}
-              </CardContent>
-            </Card>
+            {popularTags.length > 0 && (
+              <Card size="sm">
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <TrendingUp className="size-4 text-primary" /> Temas populares
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="flex flex-wrap gap-2">
+                  {popularTags.map((tag) => (
+                    <Button key={tag} variant="secondary" size="xs" className="rounded-full" onClick={() => searchFor(tag)}>
+                      #{tag}
+                    </Button>
+                  ))}
+                </CardContent>
+              </Card>
+            )}
           </div>
         </aside>
       </main>
@@ -1789,6 +2041,28 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
               </div>
             )}
 
+            {newPdf && (
+              <div className="flex items-center gap-3 rounded-lg border bg-muted/40 p-3">
+                <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-violet-100 text-violet-600 dark:bg-violet-500/15 dark:text-violet-400">
+                  <FileText className="size-[18px]" />
+                </div>
+                <div className="min-w-0">
+                  <div className="truncate text-sm font-medium">{newPdf.name}</div>
+                  <div className="text-xs text-muted-foreground">{formatSize(newPdf.size)}</div>
+                </div>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  onClick={() => setNewPdf(null)}
+                  className="ml-auto"
+                  aria-label="Quitar PDF"
+                >
+                  <X />
+                </Button>
+              </div>
+            )}
+
             {showTagInput && (
               <div className="grid gap-2">
                 <Label htmlFor="new-thread-tag">
@@ -1828,10 +2102,20 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
               </div>
             )}
 
-            <div className="flex items-center gap-2">
-              <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageSelected} className="hidden" />
+            <div className="flex flex-wrap items-center gap-2">
+              <input
+                ref={imageInputRef}
+                type="file"
+                accept="image/png,image/jpeg,image/webp,image/gif"
+                onChange={handleImageSelected}
+                className="hidden"
+              />
+              <input ref={pdfInputRef} type="file" accept="application/pdf" onChange={handlePdfSelected} className="hidden" />
               <Button type="button" variant="outline" size="sm" className="border-dashed" onClick={() => imageInputRef.current?.click()}>
                 <ImagePlus /> {newImage ? 'Cambiar imagen' : 'Adjuntar imagen'}
+              </Button>
+              <Button type="button" variant="outline" size="sm" className="border-dashed" onClick={() => pdfInputRef.current?.click()}>
+                <Paperclip /> {newPdf ? 'Cambiar PDF' : 'Adjuntar PDF'}
               </Button>
               <Button
                 type="button"
@@ -1850,8 +2134,8 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
 
             <DialogFooter>
               <DialogClose render={<Button type="button" variant="outline" />}>Cancelar</DialogClose>
-              <Button type="submit">
-                <Send /> Publicar hilo
+              <Button type="submit" disabled={publishing}>
+                {publishing ? <Loader2 className="animate-spin" /> : <Send />} Publicar hilo
               </Button>
             </DialogFooter>
           </form>

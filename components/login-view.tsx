@@ -6,8 +6,7 @@ import {
   Mail, Lock, Eye, EyeOff, ArrowRight, ShieldCheck,
   AlertCircle, HelpCircle, Loader2, CheckCircle2
 } from 'lucide-react'
-import { cn } from '@/lib/utils'
-import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { createClient, toAuthEmail } from '@/lib/supabase'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card'
 import { Checkbox } from '@/components/ui/checkbox'
@@ -19,15 +18,25 @@ import { Label } from '@/components/ui/label'
 import { Separator } from '@/components/ui/separator'
 
 export interface UserProfile {
+  id: string
+  studentId: string
   name: string
+  fullName: string
   initials: string
   career: string
   email: string
-  role?: string
+  role: string
+  bio: string
+  isAdmin: boolean
+  mustChangePassword: boolean
+  notifReplies: boolean
+  notifNotices: boolean
+  notifDigest: boolean
 }
 
 interface LoginViewProps {
-  onLogin: (user: UserProfile, remember: boolean) => void
+  // La sesión la detecta app/page.tsx con onAuthStateChange; aquí solo se avisa la preferencia
+  onLogin: (remember: boolean) => void
 }
 
 // Textos de referencia: sustituir por los documentos oficiales de la universidad
@@ -53,26 +62,6 @@ const infoContent = {
   },
 }
 
-// Perfiles de demostración, uno por carrera
-const demoProfiles: { profile: UserProfile; badge: string; subtitle: string; accent: string }[] = [
-  {
-    profile: { name: 'Mariana López', initials: 'ML', career: 'TI', email: 'mariana.lopez@utom.edu.mx', role: 'Estudiante TI' },
-    badge: 'TI', subtitle: 'TI · 5to', accent: 'bg-primary/15 text-primary',
-  },
-  {
-    profile: { name: 'Carlos Méndez', initials: 'CM', career: 'MKT', email: 'carlos.mendez@utom.edu.mx', role: 'Estudiante MKT' },
-    badge: 'MK', subtitle: 'Mercadotecnia · 7mo', accent: 'bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300',
-  },
-  {
-    profile: { name: 'Valeria Núñez', initials: 'VN', career: 'BIO', email: 'valeria.nunez@utom.edu.mx', role: 'Estudiante BIO' },
-    badge: 'BI', subtitle: 'Biotecnología · 3ro', accent: 'bg-violet-100 text-violet-800 dark:bg-violet-500/15 dark:text-violet-300',
-  },
-  {
-    profile: { name: 'Rodrigo Morales', initials: 'RM', career: 'GAST', email: 'rodrigo.morales@utom.edu.mx', role: 'Estudiante GAST' },
-    badge: 'GA', subtitle: 'Gastronomía · 4to', accent: 'bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300',
-  },
-]
-
 export default function LoginView({ onLogin }: LoginViewProps) {
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -83,14 +72,12 @@ export default function LoginView({ onLogin }: LoginViewProps) {
 
   // Modal recuperación de contraseña
   const [forgotModal, setForgotModal] = useState(false)
-  const [forgotEmail, setForgotEmail] = useState('')
-  const [forgotSuccess, setForgotSuccess] = useState(false)
 
   // Se conserva el último documento abierto para que el diálogo no cambie durante su animación de cierre
   const [infoModal, setInfoModal] = useState<keyof typeof infoContent>('rules')
   const [infoOpen, setInfoOpen] = useState(false)
 
-  const handleLogin = (e: React.FormEvent) => {
+  const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault()
     setErrorMessage('')
 
@@ -105,58 +92,20 @@ export default function LoginView({ onLogin }: LoginViewProps) {
     }
 
     setIsLoading(true)
-    setTimeout(() => {
-      setIsLoading(false)
-      const cleanEmail = email.trim().toLowerCase()
-      let name = 'Estudiante UTOM'
-      let initials = 'EU'
-      let career = 'TI'
-
-      if (cleanEmail.includes('mariana') || cleanEmail.includes('ti')) {
-        name = 'Mariana López'
-        initials = 'ML'
-        career = 'TI'
-      } else if (cleanEmail.includes('carlos') || cleanEmail.includes('mkt') || cleanEmail.includes('merca')) {
-        name = 'Carlos Méndez'
-        initials = 'CM'
-        career = 'MKT'
-      } else if (cleanEmail.includes('valeria') || cleanEmail.includes('bio')) {
-        name = 'Valeria Núñez'
-        initials = 'VN'
-        career = 'BIO'
-      } else if (cleanEmail.includes('rodrigo') || cleanEmail.includes('gast')) {
-        name = 'Rodrigo Morales'
-        initials = 'RM'
-        career = 'GAST'
-      } else {
-        const userPart = cleanEmail.split('@')[0]
-        name = userPart.charAt(0).toUpperCase() + userPart.slice(1).replace('.', ' ')
-        initials = name.substring(0, 2).toUpperCase()
-      }
-
-      onLogin({
-        name,
-        initials,
-        career,
-        email: cleanEmail.includes('@') ? cleanEmail : `${cleanEmail}@utom.edu.mx`,
-        role: 'Estudiante UTOM'
-      }, rememberMe)
-    }, 500)
-  }
-
-  const handleQuickDemo = (profile: UserProfile) => {
-    if (isLoading) return
-    setIsLoading(true)
-    setTimeout(() => {
-      setIsLoading(false)
-      onLogin(profile, rememberMe)
-    }, 300)
-  }
-
-  const handleForgotSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (!forgotEmail.trim()) return
-    setForgotSuccess(true)
+    // Se guarda antes de iniciar sesión: onAuthStateChange se dispara durante signInWithPassword
+    onLogin(rememberMe)
+    const { error } = await createClient().auth.signInWithPassword({
+      email: toAuthEmail(email),
+      password,
+    })
+    setIsLoading(false)
+    if (error) {
+      setErrorMessage(
+        error.message === 'Invalid login credentials'
+          ? 'Matrícula o contraseña incorrectas.'
+          : 'No se pudo iniciar sesión. Revisa tu conexión e inténtalo de nuevo.'
+      )
+    }
   }
 
   const openInfo = (key: keyof typeof infoContent) => {
@@ -211,7 +160,7 @@ export default function LoginView({ onLogin }: LoginViewProps) {
                       type="text"
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
-                      placeholder="usuario@utom.edu.mx o 2023TI0142"
+                      placeholder="UTOM2413TIID o usuario@utom.edu.mx"
                       className="h-10 pl-9"
                       autoComplete="username"
                     />
@@ -226,10 +175,7 @@ export default function LoginView({ onLogin }: LoginViewProps) {
                       variant="link"
                       size="xs"
                       className="h-auto px-0"
-                      onClick={() => {
-                        setForgotModal(true)
-                        setForgotSuccess(false)
-                      }}
+                      onClick={() => setForgotModal(true)}
                     >
                       ¿Olvidaste tu contraseña?
                     </Button>
@@ -277,32 +223,7 @@ export default function LoginView({ onLogin }: LoginViewProps) {
                 </Button>
               </form>
 
-              {/* Separador */}
-              <div className="flex items-center gap-3">
-                <Separator className="flex-1" />
-                <span className="text-xs font-medium text-muted-foreground">Acceso rápido demo</span>
-                <Separator className="flex-1" />
-              </div>
-
-              {/* Accesos rápidos demo por carrera */}
-              <div className="grid grid-cols-2 gap-2">
-                {demoProfiles.map(({ profile, badge, subtitle, accent }) => (
-                  <Button
-                    key={profile.email}
-                    type="button"
-                    variant="outline"
-                    disabled={isLoading}
-                    onClick={() => handleQuickDemo(profile)}
-                    className="h-auto flex-col gap-0.5 py-2.5 whitespace-normal"
-                  >
-                    <Avatar size="sm" className="mb-1">
-                      <AvatarFallback className={cn('text-[10px] font-semibold', accent)}>{badge}</AvatarFallback>
-                    </Avatar>
-                    <span className="text-xs font-medium">{profile.name}</span>
-                    <span className="text-[11px] font-normal text-muted-foreground">{subtitle}</span>
-                  </Button>
-                ))}
-              </div>
+              <Separator />
 
               <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
                 <ShieldCheck className="size-3.5 text-primary" />
@@ -337,41 +258,24 @@ export default function LoginView({ onLogin }: LoginViewProps) {
               <HelpCircle className="size-5" />
             </div>
             <DialogTitle>Recuperar contraseña</DialogTitle>
-            <DialogDescription>Ingresa tu correo institucional registrado (@utom.edu.mx).</DialogDescription>
+            <DialogDescription>
+              Tu cuenta usa un correo interno de la plataforma, así que no podemos enviarte un enlace.
+            </DialogDescription>
           </DialogHeader>
 
-          {forgotSuccess ? (
-            <>
-              <div role="status" className="rounded-lg border border-primary/30 bg-primary/10 p-3.5 text-xs text-primary">
-                <div className="mb-1 flex items-center gap-1.5 font-medium">
-                  <CheckCircle2 className="size-4" /> Enlace enviado
-                </div>
-                Revisa tu bandeja de entrada en tu correo institucional.
-              </div>
-              <DialogFooter>
-                <DialogClose render={<Button />}>Entendido</DialogClose>
-              </DialogFooter>
-            </>
-          ) : (
-            <form onSubmit={handleForgotSubmit} className="grid gap-4">
-              <div className="grid gap-2">
-                <Label htmlFor="forgot-email" className="sr-only">Correo institucional</Label>
-                <Input
-                  id="forgot-email"
-                  type="email"
-                  required
-                  value={forgotEmail}
-                  onChange={(e) => setForgotEmail(e.target.value)}
-                  placeholder="usuario@utom.edu.mx"
-                  autoComplete="email"
-                />
-              </div>
-              <DialogFooter>
-                <DialogClose render={<Button type="button" variant="outline" />}>Cancelar</DialogClose>
-                <Button type="submit">Enviar enlace</Button>
-              </DialogFooter>
-            </form>
-          )}
+          <ul className="space-y-2 text-xs leading-relaxed text-muted-foreground">
+            <li className="flex gap-2">
+              <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-primary" />
+              <span>Si aún no la cambias, tu contraseña es tu matrícula (por ejemplo UTOM2413TIID).</span>
+            </li>
+            <li className="flex gap-2">
+              <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-primary" />
+              <span>Si ya la cambiaste y no la recuerdas, pide a la administración de Wiki UTOM que la restablezca.</span>
+            </li>
+          </ul>
+          <DialogFooter>
+            <DialogClose render={<Button />}>Entendido</DialogClose>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

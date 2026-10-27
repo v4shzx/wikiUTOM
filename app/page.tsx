@@ -3,22 +3,65 @@
 import { useEffect, useState } from 'react'
 import LoginView, { UserProfile } from '@/components/login-view'
 import ForumView from '@/components/forum-view'
+import { careerCode, createClient, ProfileRow } from '@/lib/supabase'
 
-const SESSION_KEY = 'wiki-utom-session'
+// Sin "Recordarme" la sesión solo dura mientras el navegador siga abierto
+const REMEMBER_KEY = 'wiki-utom-remember'
+const ACTIVE_KEY = 'wiki-utom-active'
+
+const toUserProfile = (row: ProfileRow): UserProfile => ({
+  id: row.id,
+  studentId: row.student_id,
+  name: row.display_name,
+  fullName: row.full_name,
+  initials: row.initials,
+  career: careerCode[row.career] ?? row.career,
+  email: row.email,
+  role: row.role,
+  bio: row.bio,
+  isAdmin: row.is_admin,
+  mustChangePassword: row.must_change_password,
+  notifReplies: row.notif_replies,
+  notifNotices: row.notif_notices,
+  notifDigest: row.notif_digest,
+})
 
 export default function Page() {
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(null)
   const [sessionChecked, setSessionChecked] = useState(false)
 
-  // Restaura la sesión si el usuario marcó "Recordarme en este equipo"
   useEffect(() => {
-    try {
-      const stored = window.localStorage.getItem(SESSION_KEY)
-      if (stored) setCurrentUser(JSON.parse(stored) as UserProfile)
-    } catch {
-      window.localStorage.removeItem(SESSION_KEY)
+    const supabase = createClient()
+
+    const loadProfile = async (userId: string) => {
+      const { data } = await supabase.from('profiles').select('*').eq('id', userId).single()
+      setCurrentUser(data ? toUserProfile(data as ProfileRow) : null)
+      setSessionChecked(true)
     }
-    setSessionChecked(true)
+
+    const init = async () => {
+      try {
+        if (window.localStorage.getItem(REMEMBER_KEY) === '0' && !window.sessionStorage.getItem(ACTIVE_KEY)) {
+          await supabase.auth.signOut()
+        }
+      } catch {
+        // Almacenamiento bloqueado: se conserva la sesión de Supabase
+      }
+      const { data: { session } } = await supabase.auth.getSession()
+      if (session) await loadProfile(session.user.id)
+      else setSessionChecked(true)
+    }
+    init()
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      if (event === 'SIGNED_OUT' || !session) {
+        setCurrentUser(null)
+      } else if (event === 'SIGNED_IN') {
+        // Se difiere: no se deben hacer consultas dentro del callback de onAuthStateChange
+        setTimeout(() => loadProfile(session.user.id), 0)
+      }
+    })
+    return () => subscription.unsubscribe()
   }, [])
 
   if (!sessionChecked) return null
@@ -27,9 +70,13 @@ export default function Page() {
   if (!currentUser) {
     return (
       <LoginView
-        onLogin={(user, remember) => {
-          if (remember) window.localStorage.setItem(SESSION_KEY, JSON.stringify(user))
-          setCurrentUser(user)
+        onLogin={(remember) => {
+          try {
+            window.localStorage.setItem(REMEMBER_KEY, remember ? '1' : '0')
+            window.sessionStorage.setItem(ACTIVE_KEY, '1')
+          } catch {
+            // Sin almacenamiento la sesión simplemente se recuerda
+          }
         }}
       />
     )
@@ -39,10 +86,8 @@ export default function Page() {
   return (
     <ForumView
       user={currentUser}
-      onLogout={() => {
-        window.localStorage.removeItem(SESSION_KEY)
-        setCurrentUser(null)
-      }}
+      onUserChange={setCurrentUser}
+      onLogout={() => createClient().auth.signOut()}
     />
   )
 }
