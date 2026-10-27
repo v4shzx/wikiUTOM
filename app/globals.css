@@ -20,7 +20,7 @@
 }
 
 @theme inline {
-  --font-sans: var(--font-roboto), ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-geist-sans), ui-sans-serif, system-ui, sans-serif;
   --color-sidebar-ring: var(--sidebar-ring);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
@@ -69,7 +69,8 @@
   --card-foreground: oklch(0.145 0 0);
   --popover: oklch(1 0 0);
   --popover-foreground: oklch(0.145 0 0);
-  --primary: oklch(0.205 0 0);
+  /* Primario = verde institucional UTOM (emerald-700, contraste AA sobre blanco) */
+  --primary: oklch(0.508 0.118 165.612);
   --primary-foreground: oklch(0.985 0 0);
   --secondary: oklch(0.97 0 0);
   --secondary-foreground: oklch(0.205 0 0);
@@ -80,7 +81,7 @@
   --destructive: oklch(0.577 0.245 27.325);
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
-  --ring: oklch(0.708 0 0);
+  --ring: oklch(0.696 0.17 162.48);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -89,12 +90,12 @@
   --radius: 0.625rem;
   --sidebar: oklch(0.985 0 0);
   --sidebar-foreground: oklch(0.145 0 0);
-  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary: oklch(0.508 0.118 165.612);
   --sidebar-primary-foreground: oklch(0.985 0 0);
   --sidebar-accent: oklch(0.97 0 0);
   --sidebar-accent-foreground: oklch(0.205 0 0);
   --sidebar-border: oklch(0.922 0 0);
-  --sidebar-ring: oklch(0.708 0 0);
+  --sidebar-ring: oklch(0.696 0.17 162.48);
 }
 
 .dark {
@@ -105,7 +106,8 @@
   --card-foreground: oklch(0.985 0 0);
   --popover: oklch(0.205 0 0);
   --popover-foreground: oklch(0.985 0 0);
-  --primary: oklch(0.922 0 0);
+  /* emerald-500 sobre fondo oscuro */
+  --primary: oklch(0.696 0.17 162.48);
   --primary-foreground: oklch(0.205 0 0);
   --secondary: oklch(0.269 0 0);
   --secondary-foreground: oklch(0.985 0 0);
@@ -116,7 +118,7 @@
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(1 0 0 / 10%);
   --input: oklch(1 0 0 / 15%);
-  --ring: oklch(0.556 0 0);
+  --ring: oklch(0.596 0.145 163.225);
   --chart-1: oklch(0.87 0 0);
   --chart-2: oklch(0.556 0 0);
   --chart-3: oklch(0.439 0 0);
@@ -124,49 +126,12 @@
   --chart-5: oklch(0.269 0 0);
   --sidebar: oklch(0.205 0 0);
   --sidebar-foreground: oklch(0.985 0 0);
-  --sidebar-primary: oklch(0.488 0.243 264.376);
-  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.696 0.17 162.48);
+  --sidebar-primary-foreground: oklch(0.205 0 0);
   --sidebar-accent: oklch(0.269 0 0);
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(1 0 0 / 10%);
-  --sidebar-ring: oklch(0.556 0 0);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root:not(.light) {
-    color-scheme: dark;
-    --background: oklch(0.145 0 0);
-    --foreground: oklch(0.985 0 0);
-    --card: oklch(0.205 0 0);
-    --card-foreground: oklch(0.985 0 0);
-    --popover: oklch(0.205 0 0);
-    --popover-foreground: oklch(0.985 0 0);
-    --primary: oklch(0.922 0 0);
-    --primary-foreground: oklch(0.205 0 0);
-    --secondary: oklch(0.269 0 0);
-    --secondary-foreground: oklch(0.985 0 0);
-    --muted: oklch(0.269 0 0);
-    --muted-foreground: oklch(0.708 0 0);
-    --accent: oklch(0.269 0 0);
-    --accent-foreground: oklch(0.985 0 0);
-    --destructive: oklch(0.704 0.191 22.216);
-    --border: oklch(1 0 0 / 10%);
-    --input: oklch(1 0 0 / 15%);
-    --ring: oklch(0.556 0 0);
-    --chart-1: oklch(0.87 0 0);
-    --chart-2: oklch(0.556 0 0);
-    --chart-3: oklch(0.439 0 0);
-    --chart-4: oklch(0.371 0 0);
-    --chart-5: oklch(0.269 0 0);
-    --sidebar: oklch(0.205 0 0);
-    --sidebar-foreground: oklch(0.985 0 0);
-    --sidebar-primary: oklch(0.488 0.243 264.376);
-    --sidebar-primary-foreground: oklch(0.985 0 0);
-    --sidebar-accent: oklch(0.269 0 0);
-    --sidebar-accent-foreground: oklch(0.985 0 0);
-    --sidebar-border: oklch(1 0 0 / 10%);
-    --sidebar-ring: oklch(0.556 0 0);
-  }
+  --sidebar-ring: oklch(0.596 0.145 163.225);
 }
 
 @layer base {
@@ -175,54 +140,9 @@
   }
   body {
     @apply bg-background text-foreground;
+    font-feature-settings: 'rlig' 1, 'calt' 1;
+  }
+  h1, h2, h3 {
+    @apply tracking-tight;
   }
 }
-
-/* ================================================================
-   Tema oscuro del panel principal — controlado desde Ajustes.
-   La clase .theme-dark se aplica en la raíz de ForumView.
-   Reglas fuera de @layer para prevalecer sobre las utilidades.
-   ================================================================ */
-.theme-dark {
-  color-scheme: dark;
-}
-
-/* Superficies */
-.theme-dark.bg-\[\#f6f8f8\] { background-color: var(--color-slate-950); }
-.theme-dark .bg-\[\#f6f8f8\] { background-color: var(--color-slate-950); }
-.theme-dark .bg-white { background-color: var(--color-slate-900); }
-.theme-dark .bg-white\/95 { background-color: color-mix(in oklab, var(--color-slate-900) 92%, transparent); }
-.theme-dark .bg-slate-50 { background-color: color-mix(in oklab, var(--color-slate-800) 55%, transparent); }
-.theme-dark .bg-slate-50\/50 { background-color: color-mix(in oklab, var(--color-slate-800) 40%, transparent); }
-.theme-dark .bg-slate-50\/70 { background-color: color-mix(in oklab, var(--color-slate-800) 48%, transparent); }
-.theme-dark .bg-slate-100 { background-color: var(--color-slate-800); }
-.theme-dark .bg-slate-100\/70 { background-color: color-mix(in oklab, var(--color-slate-800) 70%, transparent); }
-.theme-dark .bg-slate-200 { background-color: var(--color-slate-800); }
-.theme-dark .bg-slate-300 { background-color: var(--color-slate-600); }
-.theme-dark .bg-slate-400 { background-color: var(--color-slate-500); }
-.theme-dark .bg-slate-900\/40 { background-color: color-mix(in oklab, var(--color-slate-950) 65%, transparent); }
-.theme-dark .focus\:bg-white:focus { background-color: var(--color-slate-900); }
-.theme-dark .hover\:bg-white:hover { background-color: color-mix(in oklab, var(--color-slate-800) 40%, transparent); }
-.theme-dark .hover\:bg-slate-50:hover { background-color: color-mix(in oklab, var(--color-slate-800) 45%, transparent); }
-.theme-dark .hover\:bg-slate-100:hover { background-color: var(--color-slate-800); }
-.theme-dark .hover\:bg-slate-200\/60:hover { background-color: color-mix(in oklab, var(--color-slate-700) 55%, transparent); }
-
-/* Texto */
-.theme-dark .text-slate-900 { color: var(--color-slate-100); }
-.theme-dark .text-slate-800 { color: var(--color-slate-200); }
-.theme-dark .text-slate-700 { color: var(--color-slate-300); }
-.theme-dark .text-slate-600 { color: var(--color-slate-400); }
-.theme-dark .text-slate-500 { color: var(--color-slate-400); }
-.theme-dark .text-slate-400 { color: var(--color-slate-500); }
-.theme-dark .text-slate-300 { color: var(--color-slate-500); }
-.theme-dark .hover\:text-slate-600:hover { color: var(--color-slate-200); }
-.theme-dark .hover\:text-slate-500:hover { color: var(--color-slate-300); }
-.theme-dark .hover\:text-slate-700:hover { color: var(--color-slate-200); }
-
-/* Bordes y anillos */
-.theme-dark .border-slate-200 { border-color: var(--color-slate-800); }
-.theme-dark .border-slate-200\/60 { border-color: var(--color-slate-800); }
-.theme-dark .border-slate-100 { border-color: color-mix(in oklab, var(--color-slate-800) 75%, transparent); }
-.theme-dark .border-slate-300 { border-color: var(--color-slate-600); }
-.theme-dark .ring-slate-100 { --tw-ring-color: var(--color-slate-800); }
-.theme-dark .ring-slate-200 { --tw-ring-color: var(--color-slate-700); }

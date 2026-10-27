@@ -4,8 +4,19 @@ import { useState } from 'react'
 import PlexusEffect from '@/components/plexus-effect'
 import {
   Mail, Lock, Eye, EyeOff, ArrowRight, ShieldCheck,
-  AlertCircle, HelpCircle, X, Loader2, CheckCircle2
+  AlertCircle, HelpCircle, Loader2, CheckCircle2
 } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardDescription, CardHeader } from '@/components/ui/card'
+import { Checkbox } from '@/components/ui/checkbox'
+import {
+  Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { Separator } from '@/components/ui/separator'
 
 export interface UserProfile {
   name: string
@@ -16,8 +27,51 @@ export interface UserProfile {
 }
 
 interface LoginViewProps {
-  onLogin: (user: UserProfile) => void
+  onLogin: (user: UserProfile, remember: boolean) => void
 }
+
+// Textos de referencia: sustituir por los documentos oficiales de la universidad
+const infoContent = {
+  rules: {
+    title: 'Guía de convivencia',
+    items: [
+      'Trata con respeto a compañeros, docentes y personal administrativo.',
+      'Publica en la categoría correcta y busca antes de abrir un hilo repetido.',
+      'No compartas datos personales, exámenes ni material con derechos de autor sin permiso.',
+      'Evita spam, publicidad o contenido ajeno a la vida universitaria.',
+      'Reporta cualquier contenido inapropiado al equipo de moderación.',
+    ],
+  },
+  privacy: {
+    title: 'Privacidad',
+    items: [
+      'Tu nombre, carrera y publicaciones son visibles para la comunidad UTOM.',
+      'Tu correo institucional solo se usa para autenticarte y enviarte avisos.',
+      'Con "Recordarme" tu sesión se guarda únicamente en este navegador.',
+      'Puedes cerrar sesión en cualquier momento para borrar esos datos del equipo.',
+    ],
+  },
+}
+
+// Perfiles de demostración, uno por carrera
+const demoProfiles: { profile: UserProfile; badge: string; subtitle: string; accent: string }[] = [
+  {
+    profile: { name: 'Mariana López', initials: 'ML', career: 'TI', email: 'mariana.lopez@utom.edu.mx', role: 'Estudiante TI' },
+    badge: 'TI', subtitle: 'TI · 5to', accent: 'bg-primary/15 text-primary',
+  },
+  {
+    profile: { name: 'Carlos Méndez', initials: 'CM', career: 'MKT', email: 'carlos.mendez@utom.edu.mx', role: 'Estudiante MKT' },
+    badge: 'MK', subtitle: 'Mercadotecnia · 7mo', accent: 'bg-blue-100 text-blue-800 dark:bg-blue-500/15 dark:text-blue-300',
+  },
+  {
+    profile: { name: 'Valeria Núñez', initials: 'VN', career: 'BIO', email: 'valeria.nunez@utom.edu.mx', role: 'Estudiante BIO' },
+    badge: 'BI', subtitle: 'Biotecnología · 3ro', accent: 'bg-violet-100 text-violet-800 dark:bg-violet-500/15 dark:text-violet-300',
+  },
+  {
+    profile: { name: 'Rodrigo Morales', initials: 'RM', career: 'GAST', email: 'rodrigo.morales@utom.edu.mx', role: 'Estudiante GAST' },
+    badge: 'GA', subtitle: 'Gastronomía · 4to', accent: 'bg-amber-100 text-amber-800 dark:bg-amber-500/15 dark:text-amber-300',
+  },
+]
 
 export default function LoginView({ onLogin }: LoginViewProps) {
   const [email, setEmail] = useState('')
@@ -31,6 +85,10 @@ export default function LoginView({ onLogin }: LoginViewProps) {
   const [forgotModal, setForgotModal] = useState(false)
   const [forgotEmail, setForgotEmail] = useState('')
   const [forgotSuccess, setForgotSuccess] = useState(false)
+
+  // Se conserva el último documento abierto para que el diálogo no cambie durante su animación de cierre
+  const [infoModal, setInfoModal] = useState<keyof typeof infoContent>('rules')
+  const [infoOpen, setInfoOpen] = useState(false)
 
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault()
@@ -82,15 +140,16 @@ export default function LoginView({ onLogin }: LoginViewProps) {
         career,
         email: cleanEmail.includes('@') ? cleanEmail : `${cleanEmail}@utom.edu.mx`,
         role: 'Estudiante UTOM'
-      })
+      }, rememberMe)
     }, 500)
   }
 
   const handleQuickDemo = (profile: UserProfile) => {
+    if (isLoading) return
     setIsLoading(true)
     setTimeout(() => {
       setIsLoading(false)
-      onLogin(profile)
+      onLogin(profile, rememberMe)
     }, 300)
   }
 
@@ -100,326 +159,244 @@ export default function LoginView({ onLogin }: LoginViewProps) {
     setForgotSuccess(true)
   }
 
+  const openInfo = (key: keyof typeof infoContent) => {
+    setInfoModal(key)
+    setInfoOpen(true)
+  }
+
   return (
-    <div className="relative min-h-screen min-h-[100dvh] overflow-x-hidden overflow-y-auto bg-gradient-to-br from-emerald-950 via-emerald-900 to-teal-950 text-slate-900 flex flex-col justify-between selection:bg-emerald-500 selection:text-white">
+    <div className="relative flex min-h-screen min-h-[100dvh] flex-col justify-between overflow-x-hidden overflow-y-auto bg-gradient-to-br from-emerald-950 via-emerald-900 to-teal-950 text-foreground selection:bg-primary selection:text-primary-foreground">
       {/* Fondo verde con efecto de partículas Plexus */}
       <PlexusEffect />
       <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,rgba(16,185,129,0.16),transparent_60%)]" />
       <div className="pointer-events-none absolute -top-32 left-1/4 size-96 animate-float-slow rounded-full bg-emerald-500/15 blur-3xl" />
-      <div className="pointer-events-none absolute -bottom-24 right-1/4 size-80 animate-float-slow rounded-full bg-teal-400/10 blur-3xl" />
-
-      {/* Barra superior con identidad institucional y logo */}
-
+      <div className="pointer-events-none absolute right-1/4 -bottom-24 size-80 animate-float-slow rounded-full bg-teal-400/10 blur-3xl" />
 
       {/* Contenedor centralizado para el panel de credenciales */}
-      <main className="relative z-10 flex-1 flex items-center justify-center p-4 sm:p-6 my-auto">
+      <main className="relative z-10 my-auto flex flex-1 items-center justify-center p-4 sm:p-6">
         <div className="w-full max-w-md">
 
           {/* Tarjeta de login centrada */}
-          <div className="relative rounded-2xl border border-slate-200 bg-white p-6 sm:p-8 shadow-xl shadow-emerald-950/40 overflow-hidden">
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-500" />
+          <Card className="relative gap-6 py-6 shadow-lg sm:py-8 [--card-spacing:--spacing(6)] sm:[--card-spacing:--spacing(8)]">
+            <div className="absolute top-0 right-0 left-0 h-1.5 bg-gradient-to-r from-emerald-500 via-emerald-600 to-teal-500" />
 
-            {/* Cabecera del formulario con el logo oficial */}
-            <div className="text-center mb-6">
-              <div className="mx-auto mb-4 flex items-center justify-center">
-                <img
-                  src="/media/logo.webp"
-                  alt="Logo Universidad Tecnológica del Oriente de Michoacán"
-                  className="h-14 sm:h-16 w-auto max-w-[210px] object-contain"
-                />
-              </div>
-              <h1 className="text-2xl font-bold tracking-tight text-slate-900">
-                Iniciar sesión
-              </h1>
-              <p className="mt-1 text-xs sm:text-sm text-slate-500">
-                Ingresa con tu correo institucional @utom.edu.mx o matrícula
-              </p>
-            </div>
+            {/* Cabecera con el logo oficial */}
+            <CardHeader className="justify-items-center text-center">
+              <img
+                src="/media/logo.webp"
+                alt="Logo Universidad Tecnológica del Oriente de Michoacán"
+                className="mb-3 h-14 w-auto max-w-[210px] object-contain sm:h-16"
+              />
+              <h1 className="text-2xl font-semibold tracking-tight">Iniciar sesión</h1>
+              <CardDescription>Ingresa con tu correo institucional @utom.edu.mx o matrícula</CardDescription>
+            </CardHeader>
 
-            {/* Alerta de error */}
-            {errorMessage && (
-              <div className="mb-4 flex items-start gap-2.5 rounded-xl border border-rose-200 bg-rose-50 p-3 text-xs text-rose-800">
-                <AlertCircle size={16} className="text-rose-600 shrink-0 mt-0.5" />
-                <span>{errorMessage}</span>
-              </div>
-            )}
+            <CardContent className="flex flex-col gap-6">
+              {/* Alerta de error */}
+              {errorMessage && (
+                <div role="alert" className="flex items-start gap-2.5 rounded-lg border border-destructive/30 bg-destructive/10 p-3 text-xs text-destructive">
+                  <AlertCircle className="mt-0.5 size-4 shrink-0" />
+                  <span>{errorMessage}</span>
+                </div>
+              )}
 
-            {/* Formulario */}
-            <form onSubmit={handleLogin} className="space-y-4">
-              <div>
-                <label className="block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5">
-                  Correo o matrícula
-                </label>
-                <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
-                    <Mail size={17} />
+              {/* Formulario */}
+              <form onSubmit={handleLogin} className="grid gap-4">
+                <div className="grid gap-2">
+                  <Label htmlFor="login-email">Correo o matrícula</Label>
+                  <div className="relative">
+                    <Mail className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="login-email"
+                      type="text"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      placeholder="usuario@utom.edu.mx o 2023TI0142"
+                      className="h-10 pl-9"
+                      autoComplete="username"
+                    />
                   </div>
-                  <input
-                    type="text"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="usuario@utom.edu.mx o 2023TI0142"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-4 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20"
-                    autoComplete="username"
-                  />
                 </div>
-              </div>
 
-              <div>
-                <div className="flex items-center justify-between mb-1.5">
-                  <label className="block text-xs font-bold uppercase tracking-wider text-slate-700">
-                    Contraseña
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      setForgotModal(true)
-                      setForgotSuccess(false)
-                    }}
-                    className="text-xs font-semibold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer"
-                  >
-                    ¿Olvidaste tu contraseña?
-                  </button>
-                </div>
-                <div className="relative">
-                  <div className="pointer-events-none absolute inset-y-0 left-0 flex items-center pl-3.5 text-slate-400">
-                    <Lock size={17} />
+                <div className="grid gap-2">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="login-password">Contraseña</Label>
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="xs"
+                      className="h-auto px-0"
+                      onClick={() => {
+                        setForgotModal(true)
+                        setForgotSuccess(false)
+                      }}
+                    >
+                      ¿Olvidaste tu contraseña?
+                    </Button>
                   </div>
-                  <input
-                    type={showPassword ? 'text' : 'password'}
-                    value={password}
-                    onChange={(e) => setPassword(e.target.value)}
-                    placeholder="••••••••••••"
-                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-11 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20"
-                    autoComplete="current-password"
-                  />
-                  <button
+                  <div className="relative">
+                    <Lock className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      id="login-password"
+                      type={showPassword ? 'text' : 'password'}
+                      value={password}
+                      onChange={(e) => setPassword(e.target.value)}
+                      placeholder="••••••••••••"
+                      className="h-10 pr-10 pl-9"
+                      autoComplete="current-password"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => setShowPassword(!showPassword)}
+                      className="absolute top-1/2 right-1.5 -translate-y-1/2 text-muted-foreground"
+                      aria-label={showPassword ? 'Ocultar contraseña' : 'Mostrar contraseña'}
+                      aria-pressed={showPassword}
+                    >
+                      {showPassword ? <EyeOff /> : <Eye />}
+                    </Button>
+                  </div>
+                </div>
+
+                <Label className="cursor-pointer font-normal text-muted-foreground">
+                  <Checkbox checked={rememberMe} onCheckedChange={(checked) => setRememberMe(checked)} />
+                  Recordarme en este equipo
+                </Label>
+
+                <Button type="submit" size="lg" disabled={isLoading} className="mt-2 h-10 w-full">
+                  {isLoading ? (
+                    <>
+                      <Loader2 className="animate-spin" /> Iniciando sesión...
+                    </>
+                  ) : (
+                    <>
+                      Ingresar a Wiki UTOM <ArrowRight />
+                    </>
+                  )}
+                </Button>
+              </form>
+
+              {/* Separador */}
+              <div className="flex items-center gap-3">
+                <Separator className="flex-1" />
+                <span className="text-xs font-medium text-muted-foreground">Acceso rápido demo</span>
+                <Separator className="flex-1" />
+              </div>
+
+              {/* Accesos rápidos demo por carrera */}
+              <div className="grid grid-cols-2 gap-2">
+                {demoProfiles.map(({ profile, badge, subtitle, accent }) => (
+                  <Button
+                    key={profile.email}
                     type="button"
-                    onClick={() => setShowPassword(!showPassword)}
-                    className="absolute inset-y-0 right-0 flex items-center pr-3 text-slate-400 hover:text-slate-600 cursor-pointer"
-                    aria-label="Ver u ocultar contraseña"
+                    variant="outline"
+                    disabled={isLoading}
+                    onClick={() => handleQuickDemo(profile)}
+                    className="h-auto flex-col gap-0.5 py-2.5 whitespace-normal"
                   >
-                    {showPassword ? <EyeOff size={17} /> : <Eye size={17} />}
-                  </button>
-                </div>
+                    <Avatar size="sm" className="mb-1">
+                      <AvatarFallback className={cn('text-[10px] font-semibold', accent)}>{badge}</AvatarFallback>
+                    </Avatar>
+                    <span className="text-xs font-medium">{profile.name}</span>
+                    <span className="text-[11px] font-normal text-muted-foreground">{subtitle}</span>
+                  </Button>
+                ))}
               </div>
 
-              <div className="flex items-center justify-between pt-0.5">
-                <label className="flex items-center gap-2 cursor-pointer select-none">
-                  <input
-                    type="checkbox"
-                    checked={rememberMe}
-                    onChange={(e) => setRememberMe(e.target.checked)}
-                    className="size-4 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 accent-emerald-600"
-                  />
-                  <span className="text-xs text-slate-600">Recordarme en este equipo</span>
-                </label>
+              <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">
+                <ShieldCheck className="size-3.5 text-primary" />
+                <span>Autenticación institucional de la comunidad UTOM</span>
               </div>
-
-              <button
-                type="submit"
-                disabled={isLoading}
-                className="w-full mt-2 flex items-center justify-center gap-2 rounded-xl bg-emerald-600 py-3 px-4 text-sm font-semibold text-white shadow-md shadow-emerald-600/20 hover:bg-emerald-700 focus:ring-2 focus:ring-emerald-500/40 transition disabled:opacity-70 cursor-pointer"
-              >
-                {isLoading ? (
-                  <>
-                    <Loader2 size={18} className="animate-spin" />
-                    Iniciando sesión...
-                  </>
-                ) : (
-                  <>
-                    Ingresar a Wiki UTOM
-                    <ArrowRight size={17} />
-                  </>
-                )}
-              </button>
-            </form>
-
-            {/* Separador */}
-            <div className="relative my-6 text-center">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-slate-200" />
-              </div>
-              <span className="relative bg-white px-3 text-[11px] font-bold uppercase tracking-wider text-slate-400">
-                Acceso rápido demo
-              </span>
-            </div>
-
-            {/* Accesos rápidos demo por carrera */}
-            <div className="grid grid-cols-2 gap-2">
-              <button
-                type="button"
-                onClick={() =>
-                  handleQuickDemo({
-                    name: 'Mariana López',
-                    initials: 'ML',
-                    career: 'TI',
-                    email: 'mariana.lopez@utom.edu.mx',
-                    role: 'Estudiante TI'
-                  })
-                }
-                className="flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-slate-50/80 p-2 text-center transition hover:bg-emerald-50 hover:border-emerald-300 cursor-pointer"
-              >
-                <div className="flex size-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-800 text-[11px] font-bold mb-1">
-                  TI
-                </div>
-                <span className="text-xs font-bold text-slate-800">Mariana López</span>
-                <span className="text-[10px] text-emerald-700 font-semibold">TI · 5to</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  handleQuickDemo({
-                    name: 'Carlos Méndez',
-                    initials: 'CM',
-                    career: 'MKT',
-                    email: 'carlos.mendez@utom.edu.mx',
-                    role: 'Estudiante MKT'
-                  })
-                }
-                className="flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-slate-50/80 p-2 text-center transition hover:bg-blue-50 hover:border-blue-300 cursor-pointer"
-              >
-                <div className="flex size-6 items-center justify-center rounded-full bg-blue-100 text-blue-800 text-[11px] font-bold mb-1">
-                  MK
-                </div>
-                <span className="text-xs font-bold text-slate-800">Carlos Méndez</span>
-                <span className="text-[10px] text-blue-700 font-semibold">Mercadotecnia · 7mo</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  handleQuickDemo({
-                    name: 'Valeria Núñez',
-                    initials: 'VN',
-                    career: 'BIO',
-                    email: 'valeria.nunez@utom.edu.mx',
-                    role: 'Estudiante BIO'
-                  })
-                }
-                className="flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-slate-50/80 p-2 text-center transition hover:bg-violet-50 hover:border-violet-300 cursor-pointer"
-              >
-                <div className="flex size-6 items-center justify-center rounded-full bg-violet-100 text-violet-800 text-[11px] font-bold mb-1">
-                  BI
-                </div>
-                <span className="text-xs font-bold text-slate-800">Valeria Núñez</span>
-                <span className="text-[10px] text-violet-700 font-semibold">Biotecnología · 3ro</span>
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  handleQuickDemo({
-                    name: 'Rodrigo Morales',
-                    initials: 'RM',
-                    career: 'GAST',
-                    email: 'rodrigo.morales@utom.edu.mx',
-                    role: 'Estudiante GAST'
-                  })
-                }
-                className="flex flex-col items-center justify-center rounded-xl border border-slate-200 bg-slate-50/80 p-2 text-center transition hover:bg-amber-50 hover:border-amber-300 cursor-pointer"
-              >
-                <div className="flex size-6 items-center justify-center rounded-full bg-amber-100 text-amber-800 text-[11px] font-bold mb-1">
-                  GA
-                </div>
-                <span className="text-xs font-bold text-slate-800">Rodrigo Morales</span>
-                <span className="text-[10px] text-amber-700 font-semibold">Gastronomía · 4to</span>
-              </button>
-            </div>
-
-            <div className="mt-6 flex items-center justify-center gap-1.5 text-[11px] text-slate-400">
-              <ShieldCheck size={14} className="text-emerald-600" />
-              <span>Autenticación institucional de la comunidad UTOM</span>
-            </div>
-          </div>
-
+            </CardContent>
+          </Card>
         </div>
       </main>
 
       {/* Pie de página institucional */}
-      <footer className="relative z-10 border-t border-emerald-300/10 bg-transparent py-3.5 px-4 text-center text-xs text-emerald-200/60">
-        <div className="mx-auto max-w-5xl flex flex-col sm:flex-row items-center justify-between gap-2">
+      <footer className="relative z-10 border-t border-emerald-300/10 px-4 py-3.5 text-center text-xs text-emerald-200/60">
+        <div className="mx-auto flex max-w-5xl flex-col items-center justify-between gap-2 sm:flex-row">
           <span>Universidad Tecnológica del Oriente de Michoacán · Wiki UTOM</span>
-          <div className="flex items-center gap-3 text-[11px]">
-            <a href="#rules" className="hover:text-emerald-300">Guía de convivencia</a>
-            <span>·</span>
-            <a href="#privacy" className="hover:text-emerald-300">Privacidad</a>
+          <div className="flex items-center gap-1 text-[11px]">
+            <Button variant="link" size="xs" className="text-emerald-200/60 hover:text-emerald-300" onClick={() => openInfo('rules')}>
+              Guía de convivencia
+            </Button>
+            <span aria-hidden="true">·</span>
+            <Button variant="link" size="xs" className="text-emerald-200/60 hover:text-emerald-300" onClick={() => openInfo('privacy')}>
+              Privacidad
+            </Button>
           </div>
         </div>
       </footer>
 
-      {/* Modal: Recuperación de contraseña */}
-      {forgotModal && (
-        <div
-          className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
-          role="dialog"
-          aria-modal="true"
-        >
-          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl border border-slate-100 relative">
-            <button
-              onClick={() => setForgotModal(false)}
-              className="absolute top-4 right-4 rounded-lg p-1.5 text-slate-400 hover:bg-slate-100 cursor-pointer"
-              aria-label="Cerrar modal"
-            >
-              <X size={18} />
-            </button>
-
-            <div className="flex size-10 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600 mb-3">
-              <HelpCircle size={20} />
+      {/* Diálogo: Recuperación de contraseña */}
+      <Dialog open={forgotModal} onOpenChange={(open) => setForgotModal(open)}>
+        <DialogContent>
+          <DialogHeader>
+            <div className="mb-1 flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <HelpCircle className="size-5" />
             </div>
+            <DialogTitle>Recuperar contraseña</DialogTitle>
+            <DialogDescription>Ingresa tu correo institucional registrado (@utom.edu.mx).</DialogDescription>
+          </DialogHeader>
 
-            <h3 className="text-base font-bold text-slate-900">
-              Recuperar contraseña
-            </h3>
-            <p className="mt-1 text-xs text-slate-500 leading-relaxed">
-              Ingresa tu correo institucional registrado (@utom.edu.mx).
-            </p>
-
-            {forgotSuccess ? (
-              <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-3.5 text-xs text-emerald-800">
-                <div className="flex items-center gap-1.5 font-bold mb-1">
-                  <CheckCircle2 size={15} className="text-emerald-600" />
-                  Enlace enviado
+          {forgotSuccess ? (
+            <>
+              <div role="status" className="rounded-lg border border-primary/30 bg-primary/10 p-3.5 text-xs text-primary">
+                <div className="mb-1 flex items-center gap-1.5 font-medium">
+                  <CheckCircle2 className="size-4" /> Enlace enviado
                 </div>
                 Revisa tu bandeja de entrada en tu correo institucional.
-                <button
-                  onClick={() => setForgotModal(false)}
-                  className="mt-3 block w-full rounded-lg bg-emerald-600 py-2 text-center text-xs font-semibold text-white hover:bg-emerald-700 cursor-pointer"
-                >
-                  Entendido
-                </button>
               </div>
-            ) : (
-              <form onSubmit={handleForgotSubmit} className="mt-4 space-y-3">
-                <input
+              <DialogFooter>
+                <DialogClose render={<Button />}>Entendido</DialogClose>
+              </DialogFooter>
+            </>
+          ) : (
+            <form onSubmit={handleForgotSubmit} className="grid gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="forgot-email" className="sr-only">Correo institucional</Label>
+                <Input
+                  id="forgot-email"
                   type="email"
                   required
                   value={forgotEmail}
                   onChange={(e) => setForgotEmail(e.target.value)}
                   placeholder="usuario@utom.edu.mx"
-                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2 px-3 text-xs text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-1 focus:ring-emerald-500"
+                  autoComplete="email"
                 />
-                <div className="flex justify-end gap-2 pt-1">
-                  <button
-                    type="button"
-                    onClick={() => setForgotModal(false)}
-                    className="rounded-lg px-3 py-1.5 text-xs font-semibold text-slate-500 hover:bg-slate-100 cursor-pointer"
-                  >
-                    Cancelar
-                  </button>
-                  <button
-                    type="submit"
-                    className="rounded-lg bg-emerald-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-emerald-700 shadow-sm cursor-pointer"
-                  >
-                    Enviar enlace
-                  </button>
-                </div>
-              </form>
-            )}
-          </div>
-        </div>
-      )}
+              </div>
+              <DialogFooter>
+                <DialogClose render={<Button type="button" variant="outline" />}>Cancelar</DialogClose>
+                <Button type="submit">Enviar enlace</Button>
+              </DialogFooter>
+            </form>
+          )}
+        </DialogContent>
+      </Dialog>
+
+      {/* Diálogo: Guía de convivencia / Privacidad */}
+      <Dialog open={infoOpen} onOpenChange={(open) => setInfoOpen(open)}>
+        <DialogContent>
+          <DialogHeader>
+            <div className="mb-1 flex size-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+              <ShieldCheck className="size-5" />
+            </div>
+            <DialogTitle>{infoContent[infoModal].title}</DialogTitle>
+          </DialogHeader>
+          <ul className="space-y-2 text-xs leading-relaxed text-muted-foreground">
+            {infoContent[infoModal].items.map((item) => (
+              <li key={item} className="flex gap-2">
+                <CheckCircle2 className="mt-0.5 size-3.5 shrink-0 text-primary" />
+                <span>{item}</span>
+              </li>
+            ))}
+          </ul>
+          <DialogFooter>
+            <DialogClose render={<Button />}>Entendido</DialogClose>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }

@@ -1,12 +1,12 @@
 import { Analytics } from '@vercel/analytics/next'
-import { Roboto } from 'next/font/google'
+import { Geist } from 'next/font/google'
 import type { Metadata, Viewport } from 'next'
 import './globals.css'
 
-const roboto = Roboto({
+// Geist: tipografía por defecto de shadcn/ui
+const geist = Geist({
   subsets: ['latin'],
-  weight: ['400', '500', '700', '900'],
-  variable: '--font-roboto',
+  variable: '--font-geist-sans',
 })
 
 export const metadata: Metadata = {
@@ -40,8 +40,8 @@ export default function RootLayout({
   children: React.ReactNode
 }>) {
   return (
-    <html lang="es" className={roboto.variable}>
-      <body className="antialiased">
+    <html lang="es" className={geist.variable} suppressHydrationWarning>
+      <body className="font-sans antialiased">
         {children}
         {process.env.NODE_ENV === 'production' && <Analytics />}
       </body>

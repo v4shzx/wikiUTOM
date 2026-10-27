@@ -1,13 +1,34 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import {
   ArrowLeft, AtSign, Bell, BellOff, Bookmark, Check, CheckCheck, ChevronDown, ChevronRight, Circle,
-  Eye, EyeOff, FileText, GraduationCap, Hash, Home, ImagePlus, KeyRound, LogOut, Megaphone, Menu,
-  MessageCircle, MoreHorizontal, Save, Search, Send, Settings, Share2,
-  Sliders, Sparkles, ThumbsDown, ThumbsUp, TrendingUp, Upload,
+  Download, Eye, EyeOff, FileText, GraduationCap, Hash, Home, ImagePlus, KeyRound, Link2, LogOut,
+  Megaphone, Menu, MessageCircle, MoreHorizontal, Save, Search, Send, Settings, Share2,
+  Sliders, Sparkles, ThumbsDown, ThumbsUp, Trash2, TrendingUp,
   X, User
 } from 'lucide-react'
+import { cn } from '@/lib/utils'
+import { Avatar, AvatarFallback } from '@/components/ui/avatar'
+import { Badge } from '@/components/ui/badge'
+import { Button, buttonVariants } from '@/components/ui/button'
+import {
+  Card, CardAction, CardContent, CardDescription, CardFooter, CardHeader, CardTitle,
+} from '@/components/ui/card'
+import {
+  Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog'
+import {
+  DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
+import { Input } from '@/components/ui/input'
+import { Label } from '@/components/ui/label'
+import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
+import { Popover, PopoverContent, PopoverHeader, PopoverTitle, PopoverTrigger } from '@/components/ui/popover'
+import { Separator } from '@/components/ui/separator'
+import { Switch } from '@/components/ui/switch'
+import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs' // selector de tema en Ajustes
+import { Textarea } from '@/components/ui/textarea'
 import { UserProfile } from './login-view'
 
 type NotificationType = 'reply' | 'mention' | 'notice' | 'trending'
@@ -20,7 +41,69 @@ interface Notification {
   time: string
   read: boolean
   threadId?: number | null
+  noticeId?: number
 }
+
+interface ThreadComment {
+  author: string
+  initials: string
+  text: string
+}
+
+interface Thread {
+  id: number
+  author: string
+  initials: string
+  career: string
+  time: string
+  category: string
+  title: string
+  body: string
+  score: number
+  replies: number
+  accent: string
+  comments: ThreadComment[]
+  mine?: boolean
+  image?: { url: string; name: string }
+  tags?: string[]
+  attachment?: { name: string; size: string }
+}
+
+const campusNotices = [
+  {
+    id: 1, title: 'Periodo de reinscripciones', date: 'Publicado hoy',
+    body: 'Del 30 de septiembre al 4 de octubre. Revisa el calendario de tu carrera y confirma tu carga académica en el portal escolar.',
+  },
+  {
+    id: 2, title: 'Becas de movilidad 2025', date: 'Hace 2 días',
+    body: 'Abierta la convocatoria de movilidad estudiantil. Consulta requisitos y fechas de entrega en Servicios Escolares.',
+  },
+  {
+    id: 3, title: 'Cierre temporal de biblioteca', date: 'Hace 2 días',
+    body: 'La biblioteca permanecerá cerrada por mantenimiento. Los préstamos vigentes se extienden automáticamente.',
+  },
+]
+
+// El feed ya no muestra pestañas: "Para ti" es la vista normal y las demás
+// se abren desde la barra lateral (guardados, populares) o la navbar (avisos)
+type FeedTab = 'Para ti' | 'En tendencia' | 'Mis guardados' | 'Avisos del campus'
+
+const feedModeLabel: Record<Exclude<FeedTab, 'Para ti'>, string> = {
+  'En tendencia': 'Hilos populares',
+  'Mis guardados': 'Mis guardados',
+  'Avisos del campus': 'Avisos oficiales',
+}
+
+const popularTags = ['Inscripciones', 'Residencias', 'Hackathon', 'Cafetería', 'ServicioSocial']
+
+// Categoría del foro asociada a cada carrera (para priorizar "Para ti")
+const careerCategory: Record<string, string> = {
+  TI: 'TI', BIO: 'Biotecnología', MKT: 'Mercadotecnia', GAST: 'Gastronomía',
+}
+
+const TRENDING_SCORE = 60
+const IMAGE_MAX_MB = 5
+const TAGS_MAX = 5
 
 const initialCategories = [
   'TI', 'Biotecnología', 'Mercadotecnia', 'Gastronomía',
@@ -28,12 +111,12 @@ const initialCategories = [
 ]
 
 const categoryDot: Record<string, string> = {
-  'TI': 'bg-emerald-500',
+  'TI': 'bg-primary',
   'Biotecnología': 'bg-violet-500',
   'Mercadotecnia': 'bg-blue-500',
   'Gastronomía': 'bg-amber-500',
   'Convocatorias': 'bg-pink-500',
-  'Preguntas Frecuentes': 'bg-slate-400',
+  'Preguntas Frecuentes': 'bg-muted-foreground',
 }
 
 const careerOptions = [
@@ -46,9 +129,8 @@ const careerOptions = [
 const NAME_MAX = 40
 const BIO_MAX = 160
 
-const fieldLabelClass = 'block text-xs font-bold uppercase tracking-wider text-slate-700 mb-1.5 cursor-pointer'
-const fieldInputClass = 'w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 px-3.5 text-sm text-slate-900 outline-none transition focus:border-emerald-500 focus:bg-white focus:ring-2 focus:ring-emerald-500/20'
-const readOnlyInputClass = 'w-full rounded-xl border border-slate-200 bg-slate-100/70 py-2.5 px-3.5 text-sm text-slate-500 outline-none focus:ring-2 focus:ring-slate-300/40'
+// Campos de solo lectura: <Input> con fondo atenuado
+const readOnlyInputClass = 'bg-muted text-muted-foreground dark:bg-input/50'
 
 const PASSWORD_MIN = 8
 
@@ -81,13 +163,12 @@ interface ForumViewProps {
 }
 
 export default function ForumView({ user, onLogout }: ForumViewProps) {
-  const [activeTab, setActiveTab] = useState('Para ti')
+  const [activeTab, setActiveTab] = useState<FeedTab>('Para ti')
   const [openThread, setOpenThread] = useState<number | null>(1)
   const [saved, setSaved] = useState<number[]>([])
   const [votes, setVotes] = useState<Record<number, number>>({})
   const [modal, setModal] = useState(false)
   const [mobileMenu, setMobileMenu] = useState(false)
-  const [userDropdown, setUserDropdown] = useState(false)
   const [currentView, setCurrentView] = useState<'feed' | 'settings'>('feed')
   const [navSection, setNavSection] = useState<NavSection>('feed')
   const [selectedCategories, setSelectedCategories] = useState<string[]>([])
@@ -95,16 +176,55 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
   // En Ajustes ninguna sección de la navbar queda marcada
   const activeNav: NavSection | null = currentView === 'settings' ? null : navSection
 
+  const [openNotice, setOpenNotice] = useState<number | null>(null)
+
+  // Aviso flotante para confirmar acciones (copiar enlace, guardar, etc.)
+  const [toast, setToast] = useState<string | null>(null)
+  const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const showToast = (message: string) => {
+    setToast(message)
+    if (toastTimer.current) clearTimeout(toastTimer.current)
+    toastTimer.current = setTimeout(() => setToast(null), 2500)
+  }
+
   const goToSection = (section: NavSection) => {
     setCurrentView('feed')
     setNavSection(section)
+    if (section === 'notices') setActiveTab('Avisos del campus')
+    else if (section === 'feed') setActiveTab((tab) => (tab === 'Avisos del campus' ? 'Para ti' : tab))
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const selectTab = (tab: FeedTab) => {
+    setCurrentView('feed')
+    setActiveTab(tab)
+    setNavSection(tab === 'Avisos del campus' ? 'notices' : 'feed')
+  }
+
+  const openThreadInFeed = (id: number) => {
+    setCurrentView('feed')
+    setNavSection('feed')
+    setActiveTab('Para ti')
+    setSearchQuery('')
+    setOpenThread(id)
+    setTimeout(() => {
+      document.getElementById(`thread-${id}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+    }, 60)
+  }
+
+  const openNoticeInFeed = (id: number | null) => {
+    selectTab('Avisos del campus')
+    setOpenNotice(id)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
   }
 
   // Sincroniza la sección activa con el hash (enlaces directos y botón atrás/adelante)
   useEffect(() => {
     const syncFromHash = () => {
       const hash = window.location.hash.slice(1)
-      if (isNavSection(hash)) goToSection(hash)
+      const threadMatch = hash.match(/^thread-(\d+)$/)
+      if (threadMatch) openThreadInFeed(Number(threadMatch[1]))
+      else if (isNavSection(hash)) goToSection(hash)
     }
     syncFromHash()
     window.addEventListener('hashchange', syncFromHash)
@@ -120,6 +240,35 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
   const [themePreference, setThemePreference] = useState<'light' | 'system' | 'dark'>('system')
   const [savedSuccess, setSavedSuccess] = useState(false)
   const [searchQuery, setSearchQuery] = useState('')
+
+  // Últimos ajustes guardados: "Guardar" los confirma y "Cancelar" vuelve a ellos
+  const [savedSettings, setSavedSettings] = useState({
+    name: user.name,
+    bio: 'Estudiante activo en la comunidad Wiki UTOM',
+    notifReplies: true,
+    notifNotices: true,
+    notifDigest: false,
+  })
+  const displayName = savedSettings.name
+  const displayInitials = getInitials(displayName) || user.initials
+
+  const handleSaveSettings = () => {
+    if (nameError) return
+    setSettingsName(trimmedName)
+    setSavedSettings({ name: trimmedName, bio: settingsBio.trim(), notifReplies, notifNotices, notifDigest })
+    setSavedSuccess(true)
+    setTimeout(() => setSavedSuccess(false), 3000)
+    showToast('Ajustes guardados')
+  }
+
+  const handleCancelSettings = () => {
+    setSettingsName(savedSettings.name)
+    setSettingsBio(savedSettings.bio)
+    setNotifReplies(savedSettings.notifReplies)
+    setNotifNotices(savedSettings.notifNotices)
+    setNotifDigest(savedSettings.notifDigest)
+    goToSection('feed')
+  }
 
   const trimmedName = settingsName.trim()
   const nameError = !trimmedName
@@ -165,7 +314,7 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
     {
       id: 2, type: 'notice', title: 'Aviso: Periodo de reinscripciones',
       description: 'Del 30 de septiembre al 4 de octubre. Revisa el calendario de tu carrera.',
-      time: 'hace 1 h', read: false, threadId: null,
+      time: 'hace 1 h', read: false, threadId: null, noticeId: 1,
     },
     {
       id: 3, type: 'mention', title: 'Te mencionaron en un hilo',
@@ -204,6 +353,12 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
 
   const resolvedDark = themePreference === 'dark' || (themePreference === 'system' && systemDark)
 
+  // Modo oscuro de shadcn: la clase .dark en <html> cambia todos los tokens de color
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', resolvedDark)
+    return () => document.documentElement.classList.remove('dark')
+  }, [resolvedDark])
+
   const handleThemeChange = (preference: 'light' | 'system' | 'dark') => {
     setThemePreference(preference)
     window.localStorage.setItem('wiki-utom-theme', preference)
@@ -213,13 +368,18 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
   const [newTitle, setNewTitle] = useState('')
   const [newCategory, setNewCategory] = useState(initialCategories[0])
   const [newBody, setNewBody] = useState('')
+  const [newImage, setNewImage] = useState<{ url: string; name: string } | null>(null)
+  const [newTags, setNewTags] = useState<string[]>([])
+  const [tagDraft, setTagDraft] = useState('')
+  const [showTagInput, setShowTagInput] = useState(false)
+  const imageInputRef = useRef<HTMLInputElement>(null)
 
-  const [threads, setThreads] = useState([
+  const [threads, setThreads] = useState<Thread[]>([
     {
       id: 1, author: 'Mariana López', initials: 'ML', career: 'TI', time: 'hace 2h', category: 'TI',
       title: '¿Alguien ya tomó la materia de Desarrollo Web?',
       body: 'Estoy armando mi horario para el próximo cuatrimestre y me gustaría conocer su experiencia con la materia. ¿Qué proyectos hacen y qué tan pesada es la carga?',
-      score: 38, replies: 14, accent: 'bg-emerald-100 text-emerald-700',
+      score: 38, replies: 14, accent: 'bg-primary/15 text-primary',
       comments: [
         { author: 'Diego Ramírez', initials: 'DR', text: 'La recomiendo mucho. El proyecto final es una app completa y el profe explica súper bien.' },
         { author: 'Sofía Cruz', initials: 'SC', text: 'Lleva tiempo, pero aprendes muchísimo. Ve preparando JavaScript desde antes.' }
@@ -229,7 +389,7 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
       id: 2, author: 'Carlos Méndez', initials: 'CM', career: 'MKT', time: 'hace 4h', category: 'Mercadotecnia',
       title: 'Campaña y pitch para el Hackathon UTOM 2025',
       body: 'Buscamos integrar al equipo a compañeros de Mercadotecnia y diseño para la estrategia de difusión y pitch comercial. El registro cierra este viernes.',
-      score: 72, replies: 21, accent: 'bg-blue-100 text-blue-700',
+      score: 72, replies: 21, accent: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-400',
       comments: [
         { author: 'Ana Torres', initials: 'AT', text: '¡Me interesa colaborar en la propuesta de valor y presentación!' }
       ],
@@ -238,14 +398,15 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
       id: 3, author: 'Valeria Núñez', initials: 'VN', career: 'BIO', time: 'ayer', category: 'Biotecnología',
       title: 'Material para el examen de microbiología',
       body: 'Subí mis apuntes y una guía de estudio que nos compartió la maestra. Ojalá les sirva para repasar antes del examen del jueves.',
-      score: 54, replies: 9, accent: 'bg-violet-100 text-violet-700',
+      score: 54, replies: 9, accent: 'bg-violet-100 dark:bg-violet-500/15 text-violet-700 dark:text-violet-400',
       comments: [],
+      attachment: { name: 'Guía_microbiología.pdf', size: '2.4 MB' },
     },
     {
       id: 4, author: 'Rodrigo Morales', initials: 'RM', career: 'GAST', time: 'ayer', category: 'Gastronomía',
       title: 'Muestra gastronómica regional UTOM: bases y registro',
       body: 'Comparto las bases para participar en la muestra de cocina tradicional del próximo mes. Pueden registrar equipos de hasta 3 alumnos.',
-      score: 46, replies: 8, accent: 'bg-amber-100 text-amber-700',
+      score: 46, replies: 8, accent: 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400',
       comments: [
         { author: 'Paola Vega', initials: 'PV', text: '¿En qué cocina-taller se realizarán las prácticas previas?' }
       ],
@@ -257,16 +418,71 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
   const toggleVote = (id: number, amount: number) =>
     setVotes((current) => ({ ...current, [id]: current[id] === amount ? 0 : amount }))
 
-  const toggleSave = (id: number) =>
+  const toggleSave = (id: number) => {
+    showToast(saved.includes(id) ? 'Hilo quitado de tus guardados' : 'Hilo guardado')
     setSaved((current) => current.includes(id) ? current.filter((item) => item !== id) : [...current, id])
+  }
 
-  const unreadCount = notifications.filter((n) => !n.read).length
+  const threadUrl = (id: number) => `${window.location.origin}${window.location.pathname}#thread-${id}`
+
+  const copyThreadLink = async (id: number) => {
+    try {
+      await navigator.clipboard.writeText(threadUrl(id))
+      showToast('Enlace copiado al portapapeles')
+    } catch {
+      showToast('No se pudo copiar el enlace')
+    }
+  }
+
+  const shareThread = async (thread: Thread) => {
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: thread.title, url: threadUrl(thread.id) })
+      } catch {
+        // El usuario canceló el diálogo de compartir
+      }
+      return
+    }
+    copyThreadLink(thread.id)
+  }
+
+  const deleteThread = (thread: Thread) => {
+    if (!window.confirm(`¿Eliminar el hilo "${thread.title}"? Esta acción no se puede deshacer.`)) return
+    if (thread.image) URL.revokeObjectURL(thread.image.url)
+    setThreads((current) => current.filter((t) => t.id !== thread.id))
+    setSaved((current) => current.filter((id) => id !== thread.id))
+    showToast('Hilo eliminado')
+  }
+
+  const replyToComment = (threadId: number, author: string) => {
+    setNewCommentText((current) => ({ ...current, [threadId]: `@${author} ` }))
+    requestAnimationFrame(() => document.getElementById(`reply-input-${threadId}`)?.focus())
+  }
+
+  const searchFor = (term: string) => {
+    selectTab('Para ti')
+    setSelectedCategories([])
+    setSearchQuery(term)
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  // Las preferencias guardadas en Ajustes deciden qué tipos de notificación se muestran
+  const notificationEnabled: Record<NotificationType, boolean> = {
+    reply: savedSettings.notifReplies,
+    mention: savedSettings.notifReplies,
+    notice: savedSettings.notifNotices,
+    trending: savedSettings.notifDigest,
+  }
+  const enabledNotifications = notifications.filter((n) => notificationEnabled[n.type])
+  const unreadCount = enabledNotifications.filter((n) => !n.read).length
   const visibleNotifications = notifFilter === 'unread'
-    ? notifications.filter((n) => !n.read)
-    : notifications
+    ? enabledNotifications.filter((n) => !n.read)
+    : enabledNotifications
 
   const markAllNotificationsRead = () =>
-    setNotifications((current) => current.map((n) => (n.read ? n : { ...n, read: true })))
+    setNotifications((current) =>
+      current.map((n) => (n.read || !notificationEnabled[n.type] ? n : { ...n, read: true }))
+    )
 
   const dismissNotification = (id: number) =>
     setNotifications((current) => current.filter((n) => n.id !== id))
@@ -275,18 +491,16 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
     setNotifications((current) =>
       current.map((item) => (item.id === notification.id ? { ...item, read: true } : item))
     )
-    if (notification.threadId) {
-      goToSection('feed')
-      setOpenThread(notification.threadId)
-    }
+    if (notification.threadId) openThreadInFeed(notification.threadId)
+    else if (notification.noticeId) openNoticeInFeed(notification.noticeId)
     setNotifOpen(false)
   }
 
   const notifIconBg: Record<NotificationType, string> = {
-    reply: 'bg-emerald-100 text-emerald-700',
-    mention: 'bg-blue-100 text-blue-700',
-    notice: 'bg-amber-100 text-amber-700',
-    trending: 'bg-violet-100 text-violet-700',
+    reply: 'bg-primary/15 text-primary',
+    mention: 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-400',
+    notice: 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400',
+    trending: 'bg-violet-100 dark:bg-violet-500/15 text-violet-700 dark:text-violet-400',
   }
 
   const renderNotifIcon = (type: NotificationType) => {
@@ -307,16 +521,16 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
     if (!newTitle.trim() || !newBody.trim()) return
 
     const careerAccentMap: Record<string, string> = {
-      'TI': 'bg-emerald-100 text-emerald-700',
-      'MKT': 'bg-blue-100 text-blue-700',
-      'BIO': 'bg-violet-100 text-violet-700',
-      'GAST': 'bg-amber-100 text-amber-700'
+      'TI': 'bg-primary/15 text-primary',
+      'MKT': 'bg-blue-100 dark:bg-blue-500/15 text-blue-700 dark:text-blue-400',
+      'BIO': 'bg-violet-100 dark:bg-violet-500/15 text-violet-700 dark:text-violet-400',
+      'GAST': 'bg-amber-100 dark:bg-amber-500/15 text-amber-700 dark:text-amber-400'
     }
 
-    const created = {
+    const created: Thread = {
       id: Date.now(),
-      author: user.name,
-      initials: user.initials,
+      author: displayName,
+      initials: displayInitials,
       career: user.career || 'UTOM',
       time: 'justo ahora',
       category: newCategory,
@@ -324,14 +538,55 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
       body: newBody.trim(),
       score: 1,
       replies: 0,
-      accent: careerAccentMap[user.career] || 'bg-emerald-100 text-emerald-700',
-      comments: []
+      accent: careerAccentMap[user.career] || 'bg-primary/15 text-primary',
+      comments: [],
+      mine: true,
+      image: newImage || undefined,
+      tags: newTags.length ? newTags : undefined,
     }
 
     setThreads([created, ...threads])
     setNewTitle('')
     setNewBody('')
+    setNewImage(null)
+    setNewTags([])
+    setTagDraft('')
+    setShowTagInput(false)
     setModal(false)
+    selectTab('Para ti')
+    showToast('Hilo publicado')
+  }
+
+  const handleImageSelected = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0]
+    e.target.value = ''
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      showToast('Selecciona un archivo de imagen')
+      return
+    }
+    if (file.size > IMAGE_MAX_MB * 1024 * 1024) {
+      showToast(`La imagen supera los ${IMAGE_MAX_MB} MB`)
+      return
+    }
+    if (newImage) URL.revokeObjectURL(newImage.url)
+    setNewImage({ url: URL.createObjectURL(file), name: file.name })
+  }
+
+  const removeNewImage = () => {
+    if (newImage) URL.revokeObjectURL(newImage.url)
+    setNewImage(null)
+  }
+
+  const addTag = () => {
+    const tag = tagDraft.replace(/^#+/, '').replace(/[\s,]+/g, '').trim()
+    setTagDraft('')
+    if (!tag || newTags.some((t) => t.toLowerCase() === tag.toLowerCase())) return
+    if (newTags.length >= TAGS_MAX) {
+      showToast(`Máximo ${TAGS_MAX} etiquetas por hilo`)
+      return
+    }
+    setNewTags([...newTags, tag])
   }
 
   const handleAddComment = (threadId: number) => {
@@ -347,8 +602,8 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
             comments: [
               ...t.comments,
               {
-                author: user.name,
-                initials: user.initials,
+                author: displayName,
+                initials: displayInitials,
                 text
               }
             ]
@@ -368,42 +623,71 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
       current.includes(category) ? current.filter((item) => item !== category) : [...current, category]
     )
 
+  const threadScore = (t: Thread) => t.score + (votes[t.id] || 0)
+  const isNoticesTab = !isCareersView && activeTab === 'Avisos del campus'
+
   const filteredThreads = threads.filter((t) => {
     // Vista Carreras: sin selección se muestran todas; con selección, cualquiera de las elegidas
     if (isCareersView && selectedCategories.length > 0 && !selectedCategories.includes(t.category)) return false
-    if (!searchQuery.trim()) return true
-    const q = searchQuery.toLowerCase()
+    if (!isCareersView && activeTab === 'Mis guardados' && !saved.includes(t.id)) return false
+    const q = searchQuery.trim().replace(/^#/, '').toLowerCase()
+    if (!q) return true
     return (
       t.title.toLowerCase().includes(q) ||
       t.body.toLowerCase().includes(q) ||
       t.category.toLowerCase().includes(q) ||
-      t.author.toLowerCase().includes(q)
+      t.author.toLowerCase().includes(q) ||
+      (t.tags || []).some((tag) => tag.toLowerCase().includes(q))
     )
   })
 
+  if (!isCareersView && activeTab === 'Para ti') {
+    // Primero los hilos de la carrera del usuario, conservando el orden cronológico
+    const own = careerCategory[user.career]
+    filteredThreads.sort((a, b) => Number(b.category === own) - Number(a.category === own))
+  } else if (!isCareersView && activeTab === 'En tendencia') {
+    filteredThreads.sort((a, b) => threadScore(b) - threadScore(a))
+  }
+
+
+  // Cierra el menú móvil con Escape (diálogos, menús y popovers ya lo gestionan solos)
+  useEffect(() => {
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setMobileMenu(false)
+    }
+    window.addEventListener('keydown', onKeyDown)
+    return () => window.removeEventListener('keydown', onKeyDown)
+  }, [])
+
+  const activeItemClass = 'bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary'
+
   return (
-    <div className={`min-h-screen bg-[#f6f8f8] text-slate-900 ${resolvedDark ? 'theme-dark' : ''}`}>
+    <div className="min-h-screen bg-muted/40 text-foreground">
       {/* Header */}
-      <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
+      <header className="sticky top-0 z-20 border-b bg-background/95 backdrop-blur">
         <div className="mx-auto flex h-16 max-w-[1440px] items-center gap-4 px-4 lg:px-8">
-          <button
-            className="rounded-lg p-2 lg:hidden text-slate-600 hover:bg-slate-100 cursor-pointer"
+          <Button
+            variant="ghost"
+            size="icon"
+            className="lg:hidden"
             onClick={() => setMobileMenu(!mobileMenu)}
             aria-label="Abrir menú"
+            aria-expanded={mobileMenu}
           >
             <Menu />
-          </button>
+          </Button>
 
-          <div className="flex items-center min-w-fit">
-            <img
-              src="/media/fontico.webp"
-              alt="UTOM"
-              className="h-9 sm:h-10 w-auto object-contain"
-            />
-          </div>
+          <a
+            href="#feed"
+            onClick={() => goToSection('feed')}
+            className="flex min-w-fit items-center rounded-lg outline-none focus-visible:ring-3 focus-visible:ring-ring/50"
+            aria-label="Ir al inicio de Wiki UTOM"
+          >
+            <img src="/media/fontico.webp" alt="UTOM" className="h-9 w-auto object-contain sm:h-10" />
+          </a>
 
-          {/* Centered Navigation with icon above text */}
-          <nav className="hidden md:flex flex-1 items-center justify-center gap-4 lg:gap-8">
+          {/* Navegación central: icono sobre texto */}
+          <nav className="hidden flex-1 items-center justify-center gap-4 md:flex lg:gap-8">
             {navItems.map(({ id, label, icon: Icon }) => {
               const active = activeNav === id
               return (
@@ -412,21 +696,16 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
                   href={`#${id}`}
                   onClick={() => goToSection(id)}
                   aria-current={active ? 'page' : undefined}
-                  className={`group relative flex flex-col items-center justify-center gap-1 rounded-xl px-3.5 py-1 text-xs transition ${
-                    active
-                      ? 'bg-emerald-50/70 font-semibold text-emerald-700'
-                      : 'font-medium text-slate-500 hover:bg-slate-50 hover:text-emerald-700'
-                  }`}
+                  className={cn(
+                    buttonVariants({ variant: 'ghost' }),
+                    'group relative h-auto flex-col gap-1 px-3.5 py-1 text-xs text-muted-foreground [&_svg:not([class*=size-])]:size-[19px]',
+                    active && activeItemClass
+                  )}
                 >
-                  <Icon
-                    size={19}
-                    className={`transition-transform group-hover:scale-110 ${
-                      active ? 'text-emerald-600' : 'text-slate-400 group-hover:text-emerald-600'
-                    }`}
-                  />
+                  <Icon className="transition-transform group-hover:scale-110" />
                   <span>{label}</span>
                   {active && (
-                    <span className="absolute -bottom-2 left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full bg-emerald-600" />
+                    <span className="absolute -bottom-2 left-1/2 h-0.5 w-8 -translate-x-1/2 rounded-full bg-primary" />
                   )}
                 </a>
               )
@@ -434,189 +713,147 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
-            <div className="relative">
-              <button
-                onClick={() => setNotifOpen(!notifOpen)}
-                className="relative rounded-lg p-2 text-slate-500 hover:bg-slate-100 transition cursor-pointer"
-                aria-label="Notificaciones"
-                aria-expanded={notifOpen}
+            {/* Notificaciones */}
+            <Popover open={notifOpen} onOpenChange={setNotifOpen}>
+              <PopoverTrigger
+                render={<Button variant="ghost" size="icon" className="relative" aria-label="Notificaciones" />}
               >
-                <Bell size={20} />
+                <Bell className="size-5" />
                 {unreadCount > 0 && (
-                  <span className="absolute -right-0.5 -top-0.5 flex min-w-[18px] items-center justify-center rounded-full border border-white bg-emerald-500 px-1 text-[10px] font-bold leading-4 text-white">
+                  <Badge className="absolute -top-1 -right-1 h-4 min-w-4 border-background px-1 text-[10px] tabular-nums">
                     {unreadCount}
-                  </span>
+                  </Badge>
                 )}
-              </button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-[360px] max-w-[calc(100vw-2rem)] gap-0 p-0">
+                <div className="flex items-center justify-between px-4 py-3">
+                  <PopoverHeader className="flex-row items-center gap-2">
+                    <PopoverTitle>Notificaciones</PopoverTitle>
+                    {unreadCount > 0 && <Badge variant="secondary">{unreadCount} nuevas</Badge>}
+                  </PopoverHeader>
+                  {unreadCount > 0 && (
+                    <Button variant="link" size="xs" onClick={markAllNotificationsRead} className="px-0">
+                      <CheckCheck /> Marcar leídas
+                    </Button>
+                  )}
+                </div>
+                <Separator />
 
-              {notifOpen && (
-                <>
-                  <div className="fixed inset-0 z-20" onClick={() => setNotifOpen(false)} />
-                  <div className="absolute right-0 z-30 mt-2 w-[360px] max-w-[calc(100vw-2rem)] overflow-hidden rounded-2xl border border-slate-100 bg-white shadow-xl">
-                    <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3">
-                      <div className="flex items-center gap-2">
-                        <h3 className="text-sm font-bold text-slate-900">Notificaciones</h3>
-                        {unreadCount > 0 && (
-                          <span className="rounded-full bg-emerald-100 px-2 py-0.5 text-[10px] font-bold text-emerald-700">
-                            {unreadCount} nuevas
-                          </span>
-                        )}
-                      </div>
-                      {unreadCount > 0 && (
-                        <button
-                          onClick={markAllNotificationsRead}
-                          className="flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer"
-                        >
-                          <CheckCheck size={14} /> Marcar leídas
-                        </button>
-                      )}
+                <div className="flex gap-1 px-3 pt-3">
+                  {(['all', 'unread'] as const).map((filter) => (
+                    <Button
+                      key={filter}
+                      variant={notifFilter === filter ? 'secondary' : 'ghost'}
+                      size="xs"
+                      aria-pressed={notifFilter === filter}
+                      onClick={() => setNotifFilter(filter)}
+                    >
+                      {filter === 'all' ? 'Todas' : `No leídas${unreadCount > 0 ? ` (${unreadCount})` : ''}`}
+                    </Button>
+                  ))}
+                </div>
+
+                <div className="mt-2 max-h-[340px] overflow-y-auto">
+                  {visibleNotifications.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center px-6 py-10 text-center">
+                      <BellOff className="mb-2 size-6 text-muted-foreground/60" />
+                      <p className="text-sm font-medium">Sin notificaciones</p>
+                      <p className="mt-1 text-xs text-muted-foreground">
+                        {notifFilter === 'unread'
+                          ? 'Ya leíste todas tus notificaciones.'
+                          : 'Aquí verás la actividad de la comunidad.'}
+                      </p>
                     </div>
-
-                    <div className="flex gap-1 px-3 pt-3">
-                      {(['all', 'unread'] as const).map((filter) => (
+                  ) : (
+                    visibleNotifications.map((notification) => (
+                      <div key={notification.id} className="group relative">
                         <button
-                          key={filter}
-                          onClick={() => setNotifFilter(filter)}
-                          className={`rounded-lg px-2.5 py-1 text-[11px] font-semibold transition cursor-pointer ${
-                            notifFilter === filter
-                              ? 'bg-emerald-50 text-emerald-700'
-                              : 'text-slate-500 hover:bg-slate-50'
-                          }`}
+                          type="button"
+                          onClick={() => handleNotificationClick(notification)}
+                          className={cn(
+                            'flex w-full cursor-pointer gap-3 px-4 py-3 pr-9 text-left outline-none transition-colors hover:bg-accent focus-visible:bg-accent',
+                            !notification.read && 'bg-primary/5'
+                          )}
                         >
-                          {filter === 'all' ? 'Todas' : `No leídas${unreadCount > 0 ? ` (${unreadCount})` : ''}`}
-                        </button>
-                      ))}
-                    </div>
-
-                    <div className="mt-2 max-h-[340px] overflow-y-auto">
-                      {visibleNotifications.length === 0 ? (
-                        <div className="flex flex-col items-center justify-center px-6 py-10 text-center">
-                          <BellOff size={26} className="mb-2 text-slate-300" />
-                          <p className="text-sm font-semibold text-slate-600">Sin notificaciones</p>
-                          <p className="mt-1 text-xs text-slate-400">
-                            {notifFilter === 'unread'
-                              ? 'Ya leíste todas tus notificaciones.'
-                              : 'Aquí verás la actividad de la comunidad.'}
-                          </p>
-                        </div>
-                      ) : (
-                        visibleNotifications.map((notification) => (
-                          <div
-                            key={notification.id}
-                            onClick={() => handleNotificationClick(notification)}
-                            className={`group relative flex cursor-pointer gap-3 px-4 py-3 transition ${
-                              notification.read
-                                ? 'hover:bg-slate-50'
-                                : 'bg-emerald-50/40 hover:bg-emerald-50/70'
-                            }`}
-                          >
-                            <div className={`flex size-8 shrink-0 items-center justify-center rounded-full ${notifIconBg[notification.type]}`}>
-                              {renderNotifIcon(notification.type)}
-                            </div>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex items-center gap-2">
-                                <p className="text-xs font-bold text-slate-900">{notification.title}</p>
-                                {!notification.read && (
-                                  <span className="size-1.5 shrink-0 rounded-full bg-emerald-500" />
-                                )}
-                              </div>
-                              <p className="mt-0.5 line-clamp-2 text-[11px] leading-4 text-slate-500">
-                                {notification.description}
-                              </p>
-                              <span className="mt-1 block text-[10px] text-slate-400">{notification.time}</span>
-                            </div>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation()
-                                dismissNotification(notification.id)
-                              }}
-                              className="absolute right-2 top-2 rounded-md p-1 text-slate-300 opacity-0 transition hover:bg-slate-100 hover:text-slate-500 group-hover:opacity-100 cursor-pointer"
-                              aria-label="Descartar notificación"
-                            >
-                              <X size={13} />
-                            </button>
+                          <div className={cn('flex size-8 shrink-0 items-center justify-center rounded-full', notifIconBg[notification.type])}>
+                            {renderNotifIcon(notification.type)}
                           </div>
-                        ))
-                      )}
-                    </div>
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-center gap-2">
+                              <p className="text-xs font-medium">{notification.title}</p>
+                              {!notification.read && <span className="size-1.5 shrink-0 rounded-full bg-primary" />}
+                            </div>
+                            <p className="mt-0.5 line-clamp-2 text-xs text-muted-foreground">{notification.description}</p>
+                            <span className="mt-1 block text-[11px] text-muted-foreground">{notification.time}</span>
+                          </div>
+                        </button>
+                        <Button
+                          variant="ghost"
+                          size="icon-xs"
+                          onClick={() => dismissNotification(notification.id)}
+                          className="absolute top-2 right-2 opacity-0 group-hover:opacity-100 focus-visible:opacity-100"
+                          aria-label="Descartar notificación"
+                        >
+                          <X />
+                        </Button>
+                      </div>
+                    ))
+                  )}
+                </div>
 
-                    <button
-                      onClick={() => {
-                        setCurrentView('settings')
-                        setNotifOpen(false)
-                      }}
-                      className="flex w-full items-center justify-center gap-1.5 border-t border-slate-100 px-4 py-2.5 text-[11px] font-semibold text-slate-500 transition hover:bg-slate-50 hover:text-emerald-700 cursor-pointer"
-                    >
-                      <Settings size={13} /> Configurar notificaciones
-                    </button>
-                  </div>
-                </>
-              )}
-            </div>
+                <Separator />
+                <Button
+                  variant="ghost"
+                  className="h-10 rounded-none text-xs text-muted-foreground"
+                  onClick={() => {
+                    setCurrentView('settings')
+                    setNotifOpen(false)
+                    setTimeout(() => {
+                      document.getElementById('settings-notifications')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+                    }, 60)
+                  }}
+                >
+                  <Settings /> Configurar notificaciones
+                </Button>
+              </PopoverContent>
+            </Popover>
 
-            {/* User Profile dropdown menu */}
-            <div className="relative">
-              <button
-                onClick={() => setUserDropdown(!userDropdown)}
-                className="flex size-9 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-800 border-2 border-emerald-500/20 hover:border-emerald-500/60 hover:shadow-sm transition cursor-pointer focus:outline-none focus:ring-2 focus:ring-emerald-500/30"
-                aria-label="Menú de perfil"
-                aria-expanded={userDropdown}
+            {/* Menú de perfil */}
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                render={<Button variant="ghost" size="icon" className="rounded-full" aria-label="Menú de perfil" />}
               >
-                {user.initials}
-              </button>
-
-              {userDropdown && (
-                <>
-                  <div
-                    className="fixed inset-0 z-20"
-                    onClick={() => setUserDropdown(false)}
-                  />
-                  <div className="absolute right-0 mt-2 w-64 rounded-2xl bg-white p-2.5 shadow-xl border border-slate-100 z-30">
-                    <div className="flex items-center gap-3 p-2.5 border-b border-slate-100 mb-1.5">
-                      <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-sm font-bold text-emerald-800 ring-2 ring-emerald-500/20">
-                        {user.initials}
-                      </div>
-                      <div className="min-w-0 flex-1">
-                        <p className="text-sm font-bold text-slate-900 leading-tight truncate">{user.name}</p>
-                        <p className="text-[11px] text-slate-400 truncate mt-0.5">{user.email}</p>
-                        <span className="mt-1.5 inline-flex items-center rounded-md bg-emerald-50 px-2 py-0.5 text-[10px] font-semibold text-emerald-700">
-                          {user.career} · Estudiante UTOM
-                        </span>
-                      </div>
-                    </div>
-
-                    <button
-                      onClick={() => {
-                        setUserDropdown(false)
-                        setCurrentView('settings')
-                      }}
-                      className="w-full flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-slate-700 hover:bg-slate-50 transition cursor-pointer mb-1"
-                    >
-                      <Settings size={15} className="text-slate-500" />
-                      Ajustes de cuenta
-                    </button>
-
-                    <button
-                      onClick={() => {
-                        setUserDropdown(false)
-                        onLogout()
-                      }}
-                      className="w-full flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-                    >
-                      <LogOut size={15} />
-                      Cerrar sesión
-                    </button>
+                <Avatar>
+                  <AvatarFallback className="bg-primary/15 text-xs font-semibold text-primary">{displayInitials}</AvatarFallback>
+                </Avatar>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end" className="w-64">
+                <div className="flex items-center gap-3 px-2 py-2">
+                  <Avatar size="lg">
+                    <AvatarFallback className="bg-primary/15 font-semibold text-primary">{displayInitials}</AvatarFallback>
+                  </Avatar>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium">{displayName}</p>
+                    <p className="truncate text-xs text-muted-foreground">{user.email}</p>
+                    <Badge variant="secondary" className="mt-1.5">{user.career} · Estudiante UTOM</Badge>
                   </div>
-                </>
-              )}
-            </div>
+                </div>
+                <DropdownMenuSeparator />
+                <DropdownMenuItem onClick={() => setCurrentView('settings')}>
+                  <Settings /> Ajustes de cuenta
+                </DropdownMenuItem>
+                <DropdownMenuItem variant="destructive" onClick={onLogout}>
+                  <LogOut /> Cerrar sesión
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
         </div>
 
-        {/* Mobile menu */}
+        {/* Menú móvil */}
         {mobileMenu && (
-          <div className="border-t border-slate-100 px-5 py-3 text-sm lg:hidden bg-white">
-            <div className="flex flex-col gap-1 font-medium">
+          <div className="border-t bg-background px-4 py-3 lg:hidden">
+            <div className="flex flex-col gap-1">
               {navItems.map(({ id, label, icon: Icon }) => {
                 const active = activeNav === id
                 return (
@@ -628,49 +865,40 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
                       goToSection(id)
                     }}
                     aria-current={active ? 'page' : undefined}
-                    className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 transition ${
-                      active
-                        ? 'bg-emerald-50/70 font-semibold text-emerald-700'
-                        : 'text-slate-700 hover:bg-slate-50 hover:text-emerald-700'
-                    }`}
+                    className={cn(buttonVariants({ variant: 'ghost', size: 'lg' }), 'justify-start gap-2.5', active && activeItemClass)}
                   >
-                    <Icon size={18} className={active ? 'text-emerald-600' : 'text-slate-400'} />
-                    <span>{label}</span>
+                    <Icon /> {label}
                   </a>
                 )
               })}
-              <button
+              <Button
+                variant="ghost"
+                size="lg"
+                className={cn('justify-start gap-2.5', currentView === 'settings' && activeItemClass)}
                 onClick={() => {
                   setMobileMenu(false)
                   setCurrentView('settings')
                 }}
-                className={`flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left transition cursor-pointer ${
-                  currentView === 'settings'
-                    ? 'text-emerald-700 bg-emerald-50/70 font-semibold'
-                    : 'text-slate-700 hover:bg-slate-50 hover:text-emerald-700'
-                }`}
               >
-                <Settings size={18} className={currentView === 'settings' ? 'text-emerald-600' : 'text-slate-400'} />
-                <span>Ajustes</span>
-              </button>
-              <button
+                <Settings /> Ajustes
+              </Button>
+              <Button
+                variant="ghost"
+                size="lg"
+                className="justify-start gap-2.5"
                 onClick={() => {
                   setMobileMenu(false)
                   setModal(true)
                 }}
-                className="flex items-center gap-2.5 rounded-lg px-2.5 py-2 text-left text-slate-700 hover:bg-slate-50 hover:text-emerald-700 font-semibold cursor-pointer"
               >
-                <Sparkles size={18} className="text-emerald-600" />
-                <span>+ Crear hilo</span>
-              </button>
-              <div className="pt-2 border-t border-slate-100 flex items-center justify-between text-xs">
-                <span className="text-slate-500 font-medium">Conectado como {user.name}</span>
-                <button
-                  onClick={onLogout}
-                  className="text-rose-600 font-semibold"
-                >
+                <Sparkles className="text-primary" /> Crear hilo
+              </Button>
+              <Separator className="my-1" />
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-muted-foreground">Conectado como {displayName}</span>
+                <Button variant="destructive" size="sm" onClick={onLogout}>
                   Cerrar sesión
-                </button>
+                </Button>
               </div>
             </div>
           </div>
@@ -678,948 +906,971 @@ export default function ForumView({ user, onLogout }: ForumViewProps) {
       </header>
 
       {/* Main body */}
-      <main className="mx-auto grid max-w-[1440px] grid-cols-1 gap-6 px-4 py-6 lg:grid-cols-[220px_minmax(0,1fr)] xl:grid-cols-[220px_minmax(0,1fr)_280px] lg:px-8">
-        
-        {/* Left Sidebar */}
+      <main className="mx-auto grid max-w-[1440px] grid-cols-1 gap-6 px-4 py-6 lg:grid-cols-[220px_minmax(0,1fr)] lg:px-8 xl:grid-cols-[220px_minmax(0,1fr)_280px]">
+
+        {/* Barra lateral izquierda */}
         <aside className="hidden lg:block" aria-labelledby="sidebar-title">
           <div className="sticky top-24">
-            <h2 id="sidebar-title" className="mb-3 px-2 text-xs font-bold uppercase tracking-wider text-slate-400">
+            <h2 id="sidebar-title" className="mb-2 px-2 text-xs font-medium text-muted-foreground">
               Accesos rápidos
             </h2>
-            <div className="flex flex-col gap-1 text-sm text-slate-600">
-              <button
-                onClick={() => {
-                  goToSection('feed')
-                  setActiveTab('Para ti')
-                }}
-                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 transition cursor-pointer ${
-                  currentView === 'feed' && activeTab === 'Mis guardados'
-                    ? 'bg-emerald-50 font-semibold text-emerald-700'
-                    : 'hover:bg-white hover:shadow-xs'
-                }`}
+            <div className="flex flex-col gap-1">
+              <Button
+                variant="ghost"
+                size="lg"
+                onClick={() => selectTab('Mis guardados')}
+                aria-current={activeNav === 'feed' && activeTab === 'Mis guardados' ? 'page' : undefined}
+                className={cn('justify-start gap-3 text-muted-foreground', activeNav === 'feed' && activeTab === 'Mis guardados' && activeItemClass)}
               >
-                <Bookmark size={17} /> Mis guardados ({saved.length})
-              </button>
-
-              <button
+                <Bookmark /> Mis guardados
+                <Badge variant="secondary" className="ml-auto tabular-nums">{saved.length}</Badge>
+              </Button>
+              <Button
+                variant="ghost"
+                size="lg"
                 onClick={() => setCurrentView('settings')}
-                className={`flex items-center gap-3 rounded-xl px-3 py-2.5 transition cursor-pointer ${
-                  currentView === 'settings'
-                    ? 'bg-emerald-50 font-semibold text-emerald-700'
-                    : 'hover:bg-white hover:shadow-xs'
-                }`}
+                aria-current={currentView === 'settings' ? 'page' : undefined}
+                className={cn('justify-start gap-3 text-muted-foreground', currentView === 'settings' && activeItemClass)}
               >
-                <Settings size={17} className={currentView === 'settings' ? 'text-emerald-600' : 'text-slate-400'} />
-                <span>Ajustes</span>
-              </button>
-
-              <button
-                onClick={() => {
-                  goToSection('feed')
-                  setActiveTab('En tendencia')
-                }}
-                className="flex items-center gap-3 rounded-xl px-3 py-2.5 hover:bg-white hover:shadow-xs transition cursor-pointer"
+                <Settings /> Ajustes
+              </Button>
+              <Button
+                variant="ghost"
+                size="lg"
+                onClick={() => selectTab('En tendencia')}
+                aria-current={activeNav === 'feed' && activeTab === 'En tendencia' ? 'page' : undefined}
+                className={cn('justify-start gap-3 text-muted-foreground', activeNav === 'feed' && activeTab === 'En tendencia' && activeItemClass)}
               >
-                <TrendingUp size={17} /> Hilos populares
-              </button>
+                <TrendingUp /> Hilos populares
+              </Button>
             </div>
           </div>
         </aside>
 
-        {/* Central Content: Settings View or Normal Feed */}
+        {/* Contenido central: Ajustes o Feed */}
         {currentView === 'settings' ? (
           <section id="settings" className="min-w-0">
-            {/* Header de Ajustes */}
-            <div className="mb-6 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+            <div className="mb-6 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
               <div>
-                <button
-                  onClick={() => goToSection('feed')}
-                  className="mb-2 inline-flex items-center gap-1.5 text-xs font-semibold text-emerald-700 hover:text-emerald-800 hover:underline cursor-pointer"
-                >
-                  <ArrowLeft size={15} />
-                  Volver al Feed
-                </button>
-                <h1 className="text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-                  Ajustes
-                </h1>
-                <p className="mt-1 text-sm text-slate-500">
+                <Button variant="link" size="sm" onClick={handleCancelSettings} className="mb-1 px-0">
+                  <ArrowLeft /> Volver al Feed
+                </Button>
+                <h1 className="text-2xl font-semibold tracking-tight sm:text-3xl">Ajustes</h1>
+                <p className="mt-1 text-sm text-muted-foreground">
                   Administra tu perfil institucional, preferencias de la comunidad y seguridad.
                 </p>
               </div>
 
               {savedSuccess && (
-                <div className="flex items-center gap-2 rounded-xl bg-emerald-50 border border-emerald-200 px-3.5 py-2 text-xs font-semibold text-emerald-800 animate-in fade-in">
-                  <Check size={16} className="text-emerald-600" />
+                <div className="flex items-center gap-2 rounded-lg border border-primary/30 bg-primary/10 px-3.5 py-2 text-xs font-medium text-primary animate-in fade-in">
+                  <Check className="size-4" />
                   <span>Ajustes guardados con éxito</span>
                 </div>
               )}
             </div>
 
             <div className="flex flex-col gap-6">
-              {/* Tarjeta 1: Perfil Institucional */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
-                <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100 mb-5">
-                  <div className="flex size-9 items-center justify-center rounded-xl bg-emerald-50 text-emerald-600">
-                    <User size={19} />
-                  </div>
-                  <div>
-                    <h2 className="text-base font-bold text-slate-900">Perfil del estudiante</h2>
-                    <p className="text-xs text-slate-400">Información visible para la comunidad UTOM</p>
-                  </div>
-                </div>
-
-                <div className="flex flex-col sm:flex-row items-start gap-4 mb-6" aria-live="polite">
-                  <div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-emerald-100 text-lg font-bold text-emerald-800 ring-4 ring-emerald-500/10">
-                    {getInitials(settingsName) || user.initials}
-                  </div>
-                  <div className="min-w-0 flex-1 space-y-1">
-                    <div className="flex flex-wrap items-center gap-2">
-                      <span className="truncate font-bold text-slate-900 text-base">
-                        {settingsName.trim() || 'Sin nombre'}
-                      </span>
-                      <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-[10px] font-bold text-emerald-800">
-                        {user.career}
-                      </span>
+              {/* Tarjeta 1: Perfil del estudiante */}
+              <Card>
+                <CardHeader className="border-b">
+                  <div className="flex items-center gap-3">
+                    <div className="flex size-9 items-center justify-center rounded-lg bg-primary/10 text-primary">
+                      <User className="size-[18px]" />
                     </div>
-                    <p className="text-xs text-slate-500">Vista previa de cómo te verán en la comunidad</p>
-                  </div>
-                </div>
-
-                <fieldset className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-5">
-                  <legend className="sr-only">Datos editables del perfil</legend>
-
-                  <div>
-                    <label htmlFor="profile-name" className={fieldLabelClass}>
-                      Nombre para mostrar <span className="text-rose-500" aria-hidden="true">*</span>
-                    </label>
-                    <input
-                      id="profile-name"
-                      name="displayName"
-                      type="text"
-                      autoComplete="name"
-                      required
-                      maxLength={NAME_MAX}
-                      value={settingsName}
-                      onChange={(e) => setSettingsName(e.target.value)}
-                      aria-invalid={nameError ? true : undefined}
-                      aria-describedby="profile-name-hint"
-                      className={`${fieldInputClass} ${nameError ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-500/20' : ''}`}
-                    />
-                    <p id="profile-name-hint" className={`mt-1.5 text-[11px] ${nameError ? 'text-rose-600' : 'text-slate-400'}`}>
-                      {nameError || 'Así aparecerás en tus hilos y comentarios.'}
-                    </p>
-                  </div>
-
-                  <div className="sm:col-span-2">
-                    <div className="flex items-baseline justify-between">
-                      <label htmlFor="profile-bio" className={fieldLabelClass}>
-                        Biografía / Estado
-                      </label>
-                      <span
-                        className={`text-[11px] tabular-nums ${settingsBio.length >= BIO_MAX ? 'text-rose-600' : 'text-slate-400'}`}
-                        aria-hidden="true"
-                      >
-                        {settingsBio.length}/{BIO_MAX}
-                      </span>
+                    <div className="grid gap-1">
+                      <CardTitle>Perfil del estudiante</CardTitle>
+                      <CardDescription>Información visible para la comunidad UTOM</CardDescription>
                     </div>
-                    <textarea
-                      id="profile-bio"
-                      name="bio"
-                      rows={3}
-                      maxLength={BIO_MAX}
-                      value={settingsBio}
-                      onChange={(e) => setSettingsBio(e.target.value)}
-                      aria-describedby="profile-bio-hint"
-                      className={`${fieldInputClass} resize-none`}
-                      placeholder="Escribe una breve presentación o materias de tu interés..."
-                    />
-                    <p id="profile-bio-hint" className="mt-1.5 text-[11px] text-slate-400">
-                      Opcional · máximo {BIO_MAX} caracteres.
-                    </p>
                   </div>
-                </fieldset>
+                </CardHeader>
 
-                <fieldset className="mt-6 grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-5 border-t border-slate-100 pt-5">
-                  <legend className="mb-3 text-[11px] font-semibold text-slate-400">
-                    Gestionado por la institución · no editable
-                  </legend>
-
-                  <div>
-                    <label htmlFor="profile-email" className={fieldLabelClass}>
-                      Correo institucional
-                    </label>
-                    <input
-                      id="profile-email"
-                      name="email"
-                      type="email"
-                      readOnly
-                      value={user.email}
-                      className={readOnlyInputClass}
-                    />
+                <CardContent className="flex flex-col gap-6">
+                  <div className="flex flex-col items-start gap-4 sm:flex-row" aria-live="polite">
+                    <Avatar className="size-14 rounded-xl after:rounded-xl">
+                      <AvatarFallback className="rounded-xl bg-primary/15 text-lg font-semibold text-primary">
+                        {getInitials(settingsName) || user.initials}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="min-w-0 flex-1 space-y-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <span className="truncate text-base font-medium">{settingsName.trim() || 'Sin nombre'}</span>
+                        <Badge variant="secondary">{user.career}</Badge>
+                      </div>
+                      <p className="text-xs text-muted-foreground">Vista previa de cómo te verán en la comunidad</p>
+                    </div>
                   </div>
 
-                  <div>
-                    <label htmlFor="profile-role" className={fieldLabelClass}>
-                      Rol institucional
-                    </label>
-                    <input
-                      id="profile-role"
-                      name="role"
-                      type="text"
-                      readOnly
-                      value={user.role || 'Estudiante UTOM'}
-                      className={readOnlyInputClass}
-                    />
-                  </div>
+                  <fieldset className="grid grid-cols-1 gap-x-4 gap-y-5 sm:grid-cols-2">
+                    <legend className="sr-only">Datos editables del perfil</legend>
 
-                  <div className="sm:col-span-2">
-                    <label htmlFor="profile-career" className={fieldLabelClass}>
-                      Carrera actual
-                    </label>
-                    <input
-                      id="profile-career"
-                      name="career"
-                      type="text"
-                      readOnly
-                      value={careerOptions.find((career) => career.value === user.career)?.label || user.career}
-                      aria-describedby="profile-career-hint"
-                      className={readOnlyInputClass}
-                    />
-                    <p id="profile-career-hint" className="mt-1.5 text-[11px] text-slate-400">
-                      Para un cambio de carrera acude a Servicios Escolares.
-                    </p>
-                  </div>
-                </fieldset>
-              </div>
+                    <div className="grid gap-2">
+                      <Label htmlFor="profile-name">
+                        Nombre para mostrar <span className="text-destructive" aria-hidden="true">*</span>
+                      </Label>
+                      <Input
+                        id="profile-name"
+                        name="displayName"
+                        type="text"
+                        autoComplete="name"
+                        required
+                        maxLength={NAME_MAX}
+                        value={settingsName}
+                        onChange={(e) => setSettingsName(e.target.value)}
+                        aria-invalid={nameError ? true : undefined}
+                        aria-describedby="profile-name-hint"
+                      />
+                      <p id="profile-name-hint" className={cn('text-xs', nameError ? 'text-destructive' : 'text-muted-foreground')}>
+                        {nameError || 'Así aparecerás en tus hilos y comentarios.'}
+                      </p>
+                    </div>
 
-              {/* Tarjeta 2: Seguridad / Cambio de contraseña */}
-              <form
-                onSubmit={handleChangePassword}
-                noValidate
-                className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm"
-              >
-                <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100 mb-5">
-                  <div className="flex size-9 items-center justify-center rounded-xl bg-rose-50 text-rose-600">
-                    <KeyRound size={19} />
-                  </div>
-                  <div className="flex-1">
-                    <h2 className="text-base font-bold text-slate-900">Cambiar contraseña</h2>
-                    <p className="text-xs text-slate-400">Verificamos el formato y que ambas contraseñas coincidan</p>
-                  </div>
-                  <button
-                    type="button"
-                    onClick={() => setShowPasswords(!showPasswords)}
-                    aria-pressed={showPasswords}
-                    className="flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-[11px] font-semibold text-slate-500 hover:bg-slate-100 transition cursor-pointer"
-                  >
-                    {showPasswords ? <EyeOff size={14} /> : <Eye size={14} />}
-                    {showPasswords ? 'Ocultar' : 'Mostrar'}
-                  </button>
-                </div>
+                    <div className="grid gap-2 sm:col-span-2">
+                      <div className="flex items-baseline justify-between">
+                        <Label htmlFor="profile-bio">Biografía / Estado</Label>
+                        <span
+                          className={cn('text-xs tabular-nums', settingsBio.length >= BIO_MAX ? 'text-destructive' : 'text-muted-foreground')}
+                          aria-hidden="true"
+                        >
+                          {settingsBio.length}/{BIO_MAX}
+                        </span>
+                      </div>
+                      <Textarea
+                        id="profile-bio"
+                        name="bio"
+                        rows={3}
+                        maxLength={BIO_MAX}
+                        value={settingsBio}
+                        onChange={(e) => setSettingsBio(e.target.value)}
+                        aria-describedby="profile-bio-hint"
+                        className="resize-none"
+                        placeholder="Escribe una breve presentación o materias de tu interés..."
+                      />
+                      <p id="profile-bio-hint" className="text-xs text-muted-foreground">
+                        Opcional · máximo {BIO_MAX} caracteres.
+                      </p>
+                    </div>
+                  </fieldset>
 
-                {/* Campo oculto para que los gestores de contraseñas asocien la cuenta */}
-                <input type="email" name="username" autoComplete="username" value={user.email} readOnly hidden />
+                  <Separator />
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-5">
-                  <div className="sm:col-span-2 sm:max-w-[calc(50%-0.5rem)]">
-                    <label htmlFor="password-current" className={fieldLabelClass}>
-                      Contraseña actual
-                    </label>
-                    <input
-                      id="password-current"
-                      name="currentPassword"
-                      type={showPasswords ? 'text' : 'password'}
-                      autoComplete="current-password"
-                      required
-                      value={currentPassword}
-                      onChange={(e) => setCurrentPassword(e.target.value)}
-                      className={fieldInputClass}
-                    />
+                  <fieldset className="grid grid-cols-1 gap-x-4 gap-y-5 sm:grid-cols-2">
+                    <legend className="mb-4 text-xs font-medium text-muted-foreground">
+                      Gestionado por la institución · no editable
+                    </legend>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="profile-email">Correo institucional</Label>
+                      <Input id="profile-email" name="email" type="email" readOnly value={user.email} className={readOnlyInputClass} />
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="profile-role">Rol institucional</Label>
+                      <Input id="profile-role" name="role" type="text" readOnly value={user.role || 'Estudiante UTOM'} className={readOnlyInputClass} />
+                    </div>
+
+                    <div className="grid gap-2 sm:col-span-2">
+                      <Label htmlFor="profile-career">Carrera actual</Label>
+                      <Input
+                        id="profile-career"
+                        name="career"
+                        type="text"
+                        readOnly
+                        value={careerOptions.find((career) => career.value === user.career)?.label || user.career}
+                        aria-describedby="profile-career-hint"
+                        className={readOnlyInputClass}
+                      />
+                      <p id="profile-career-hint" className="text-xs text-muted-foreground">
+                        Para un cambio de carrera acude a Servicios Escolares.
+                      </p>
+                    </div>
+                  </fieldset>
+                </CardContent>
+              </Card>
+
+              {/* Tarjeta 2: Cambio de contraseña */}
+              <form onSubmit={handleChangePassword} noValidate>
+              <Card>
+                <CardHeader className="border-b">
+                  <div className="flex items-center gap-3">
+                    <div className="flex size-9 items-center justify-center rounded-lg bg-destructive/10 text-destructive">
+                      <KeyRound className="size-[18px]" />
+                    </div>
+                    <div className="grid gap-1">
+                      <CardTitle>Cambiar contraseña</CardTitle>
+                      <CardDescription>Verificamos el formato y que ambas contraseñas coincidan</CardDescription>
+                    </div>
                   </div>
-
-                  <div>
-                    <label htmlFor="password-new" className={fieldLabelClass}>
-                      Nueva contraseña
-                    </label>
-                    <input
-                      id="password-new"
-                      name="newPassword"
-                      type={showPasswords ? 'text' : 'password'}
-                      autoComplete="new-password"
-                      required
-                      value={newPassword}
-                      onChange={(e) => setNewPassword(e.target.value)}
-                      aria-invalid={newPassword && (!passwordSyntaxValid || passwordReused) ? true : undefined}
-                      aria-describedby="password-rules password-reused"
-                      className={`${fieldInputClass} ${
-                        newPassword && (!passwordSyntaxValid || passwordReused)
-                          ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-500/20'
-                          : newPassword && passwordSyntaxValid
-                            ? 'border-emerald-400'
-                            : ''
-                      }`}
-                    />
-                    <p id="password-reused" className="mt-1.5 text-[11px] text-rose-600" aria-live="polite">
-                      {passwordReused ? 'La nueva contraseña debe ser distinta a la actual.' : ''}
-                    </p>
-                  </div>
-
-                  <div>
-                    <label htmlFor="password-confirm" className={fieldLabelClass}>
-                      Confirmar nueva contraseña
-                    </label>
-                    <input
-                      id="password-confirm"
-                      name="confirmPassword"
-                      type={showPasswords ? 'text' : 'password'}
-                      autoComplete="new-password"
-                      required
-                      value={confirmPassword}
-                      onChange={(e) => setConfirmPassword(e.target.value)}
-                      onPaste={(e) => e.preventDefault()}
-                      aria-invalid={confirmPassword && !passwordsMatch ? true : undefined}
-                      aria-describedby="password-confirm-hint"
-                      className={`${fieldInputClass} ${
-                        confirmPassword && !passwordsMatch
-                          ? 'border-rose-400 focus:border-rose-500 focus:ring-rose-500/20'
-                          : passwordsMatch
-                            ? 'border-emerald-400'
-                            : ''
-                      }`}
-                    />
-                    <p
-                      id="password-confirm-hint"
-                      aria-live="polite"
-                      className={`mt-1.5 flex items-center gap-1 text-[11px] ${
-                        !confirmPassword ? 'text-slate-400' : passwordsMatch ? 'text-emerald-600' : 'text-rose-600'
-                      }`}
+                  <CardAction>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => setShowPasswords(!showPasswords)}
+                      aria-pressed={showPasswords}
                     >
-                      {!confirmPassword
-                        ? 'Escríbela de nuevo (no se permite pegar).'
-                        : passwordsMatch
-                          ? <><Check size={12} /> Las contraseñas coinciden</>
-                          : <><X size={12} /> Las contraseñas no coinciden</>}
-                    </p>
-                  </div>
+                      {showPasswords ? <EyeOff /> : <Eye />}
+                      {showPasswords ? 'Ocultar' : 'Mostrar'}
+                    </Button>
+                  </CardAction>
+                </CardHeader>
 
-                  <ul
-                    id="password-rules"
-                    className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-1.5 rounded-xl border border-slate-100 bg-slate-50/50 p-3.5"
-                  >
-                    {passwordChecks.map((rule) => (
-                      <li
-                        key={rule.id}
-                        className={`flex items-center gap-1.5 text-[11px] font-medium ${
-                          rule.passed ? 'text-emerald-700' : 'text-slate-400'
-                        }`}
+                <CardContent>
+                  {/* Campo oculto para que los gestores de contraseñas asocien la cuenta */}
+                  <input type="email" name="username" autoComplete="username" value={user.email} readOnly hidden />
+
+                  <div className="grid grid-cols-1 gap-x-4 gap-y-5 sm:grid-cols-2">
+                    <div className="grid gap-2 sm:col-span-2 sm:max-w-[calc(50%-0.5rem)]">
+                      <Label htmlFor="password-current">Contraseña actual</Label>
+                      <Input
+                        id="password-current"
+                        name="currentPassword"
+                        type={showPasswords ? 'text' : 'password'}
+                        autoComplete="current-password"
+                        required
+                        value={currentPassword}
+                        onChange={(e) => setCurrentPassword(e.target.value)}
+                      />
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="password-new">Nueva contraseña</Label>
+                      <Input
+                        id="password-new"
+                        name="newPassword"
+                        type={showPasswords ? 'text' : 'password'}
+                        autoComplete="new-password"
+                        required
+                        value={newPassword}
+                        onChange={(e) => setNewPassword(e.target.value)}
+                        aria-invalid={newPassword && (!passwordSyntaxValid || passwordReused) ? true : undefined}
+                        aria-describedby="password-rules password-reused"
+                        className={cn(newPassword && passwordSyntaxValid && !passwordReused && 'border-primary/60')}
+                      />
+                      <p id="password-reused" className="min-h-4 text-xs text-destructive" aria-live="polite">
+                        {passwordReused ? 'La nueva contraseña debe ser distinta a la actual.' : ''}
+                      </p>
+                    </div>
+
+                    <div className="grid gap-2">
+                      <Label htmlFor="password-confirm">Confirmar nueva contraseña</Label>
+                      <Input
+                        id="password-confirm"
+                        name="confirmPassword"
+                        type={showPasswords ? 'text' : 'password'}
+                        autoComplete="new-password"
+                        required
+                        value={confirmPassword}
+                        onChange={(e) => setConfirmPassword(e.target.value)}
+                        onPaste={(e) => e.preventDefault()}
+                        aria-invalid={confirmPassword && !passwordsMatch ? true : undefined}
+                        aria-describedby="password-confirm-hint"
+                        className={cn(passwordsMatch && 'border-primary/60')}
+                      />
+                      <p
+                        id="password-confirm-hint"
+                        aria-live="polite"
+                        className={cn(
+                          'flex min-h-4 items-center gap-1 text-xs [&_svg]:size-3',
+                          !confirmPassword ? 'text-muted-foreground' : passwordsMatch ? 'text-primary' : 'text-destructive'
+                        )}
                       >
-                        {rule.passed ? <Check size={13} className="text-emerald-600" /> : <Circle size={11} />}
-                        {rule.label}
-                        <span className="sr-only">{rule.passed ? '(cumplido)' : '(pendiente)'}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
+                        {!confirmPassword
+                          ? 'Escríbela de nuevo (no se permite pegar).'
+                          : passwordsMatch
+                            ? <><Check /> Las contraseñas coinciden</>
+                            : <><X /> Las contraseñas no coinciden</>}
+                      </p>
+                    </div>
 
-                <div className="mt-5 flex flex-col-reverse sm:flex-row sm:items-center sm:justify-end gap-3">
+                    <ul
+                      id="password-rules"
+                      className="grid grid-cols-1 gap-x-4 gap-y-1.5 rounded-lg border bg-muted/40 p-3.5 sm:col-span-2 sm:grid-cols-3"
+                    >
+                      {passwordChecks.map((rule) => (
+                        <li
+                          key={rule.id}
+                          className={cn('flex items-center gap-1.5 text-xs', rule.passed ? 'text-primary' : 'text-muted-foreground')}
+                        >
+                          {rule.passed ? <Check className="size-3.5" /> : <Circle className="size-3" />}
+                          {rule.label}
+                          <span className="sr-only">{rule.passed ? '(cumplido)' : '(pendiente)'}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                </CardContent>
+
+                <CardFooter className="justify-end gap-3">
                   {passwordSuccess && (
-                    <span className="flex items-center gap-1.5 text-xs font-semibold text-emerald-700" role="status">
-                      <Check size={15} /> Contraseña actualizada
+                    <span className="flex items-center gap-1.5 text-xs font-medium text-primary" role="status">
+                      <Check className="size-4" /> Contraseña actualizada
                     </span>
                   )}
-                  <button
-                    type="submit"
-                    disabled={!canChangePassword}
-                    className="flex items-center justify-center gap-2 rounded-xl bg-slate-900 px-4 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-slate-800 transition cursor-pointer disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-slate-900"
-                  >
-                    <KeyRound size={15} />
-                    Actualizar contraseña
-                  </button>
-                </div>
+                  <Button type="submit" disabled={!canChangePassword}>
+                    <KeyRound /> Actualizar contraseña
+                  </Button>
+                </CardFooter>
+              </Card>
               </form>
 
-              {/* Tarjeta 3: Notificaciones y Alertas */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
-                <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100 mb-5">
-                  <div className="flex size-9 items-center justify-center rounded-xl bg-blue-50 text-blue-600">
-                    <Bell size={19} />
+              {/* Tarjeta 3: Notificaciones y alertas */}
+              <Card id="settings-notifications" className="scroll-mt-24">
+                <CardHeader className="border-b">
+                  <div className="flex items-center gap-3">
+                    <div className="flex size-9 items-center justify-center rounded-lg bg-blue-50 text-blue-600 dark:bg-blue-500/10 dark:text-blue-400">
+                      <Bell className="size-[18px]" />
+                    </div>
+                    <div className="grid gap-1">
+                      <CardTitle>Notificaciones y alertas</CardTitle>
+                      <CardDescription>Controla cuándo recibes alertas sobre actividades del foro</CardDescription>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="text-base font-bold text-slate-900">Notificaciones y alertas</h2>
-                    <p className="text-xs text-slate-400">Controla cuándo recibes alertas sobre actividades del foro</p>
-                  </div>
-                </div>
+                </CardHeader>
 
-                <div className="space-y-3">
-                  <label className="flex items-center justify-between p-3.5 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition cursor-pointer">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-800">Respuestas a mis hilos</div>
-                      <div className="text-xs text-slate-400">Notificarme inmediatamente cuando un compañero comente</div>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={notifReplies}
-                      onChange={(e) => setNotifReplies(e.target.checked)}
-                      className="size-4.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 accent-emerald-600 cursor-pointer"
-                    />
-                  </label>
-
-                  <label className="flex items-center justify-between p-3.5 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition cursor-pointer">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-800">Avisos urgentes del campus</div>
-                      <div className="text-xs text-slate-400">Convocatorias, becas y calendarios de reinscripción</div>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={notifNotices}
-                      onChange={(e) => setNotifNotices(e.target.checked)}
-                      className="size-4.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 accent-emerald-600 cursor-pointer"
-                    />
-                  </label>
-
-                  <label className="flex items-center justify-between p-3.5 rounded-xl border border-slate-100 bg-slate-50/50 hover:bg-slate-50 transition cursor-pointer">
-                    <div>
-                      <div className="text-sm font-semibold text-slate-800">Boletín semanal de mi carrera</div>
-                      <div className="text-xs text-slate-400">Hilos con mejores aportes y material descargable</div>
-                    </div>
-                    <input
-                      type="checkbox"
-                      checked={notifDigest}
-                      onChange={(e) => setNotifDigest(e.target.checked)}
-                      className="size-4.5 rounded border-slate-300 text-emerald-600 focus:ring-emerald-500 accent-emerald-600 cursor-pointer"
-                    />
-                  </label>
-                </div>
-              </div>
+                <CardContent className="flex flex-col gap-3">
+                  {[
+                    { id: 'notif-replies', title: 'Respuestas a mis hilos', hint: 'Notificarme inmediatamente cuando un compañero comente', checked: notifReplies, onChange: setNotifReplies },
+                    { id: 'notif-notices', title: 'Avisos urgentes del campus', hint: 'Convocatorias, becas y calendarios de reinscripción', checked: notifNotices, onChange: setNotifNotices },
+                    { id: 'notif-digest', title: 'Boletín semanal de mi carrera', hint: 'Hilos con mejores aportes y material descargable', checked: notifDigest, onChange: setNotifDigest },
+                  ].map((pref) => (
+                    <Label
+                      key={pref.id}
+                      className="cursor-pointer justify-between gap-4 rounded-lg border p-3.5 leading-normal font-normal transition-colors hover:bg-accent/50"
+                    >
+                      <span className="grid gap-0.5">
+                        <span className="text-sm font-medium">{pref.title}</span>
+                        <span className="text-xs text-muted-foreground">{pref.hint}</span>
+                      </span>
+                      <Switch id={pref.id} checked={pref.checked} onCheckedChange={(checked) => pref.onChange(checked)} />
+                    </Label>
+                  ))}
+                </CardContent>
+              </Card>
 
               {/* Tarjeta 4: Apariencia */}
-              <div className="rounded-2xl border border-slate-200 bg-white p-5 sm:p-6 shadow-sm">
-                <div className="flex items-center gap-2.5 pb-4 border-b border-slate-100 mb-5">
-                  <div className="flex size-9 items-center justify-center rounded-xl bg-violet-50 text-violet-600">
-                    <Sliders size={19} />
+              <Card>
+                <CardHeader className="border-b">
+                  <div className="flex items-center gap-3">
+                    <div className="flex size-9 items-center justify-center rounded-lg bg-violet-50 text-violet-600 dark:bg-violet-500/10 dark:text-violet-400">
+                      <Sliders className="size-[18px]" />
+                    </div>
+                    <div className="grid gap-1">
+                      <CardTitle>Tema y visualización</CardTitle>
+                      <CardDescription>Se aplica de inmediato y se guarda en este equipo</CardDescription>
+                    </div>
                   </div>
-                  <div>
-                    <h2 className="text-base font-bold text-slate-900">Tema y visualización</h2>
-                    <p className="text-xs text-slate-400">Se aplica de inmediato y se guarda en este equipo</p>
-                  </div>
-                </div>
+                </CardHeader>
 
-                <div className="grid grid-cols-3 gap-3">
-                  {[
-                    { id: 'light', label: 'Modo Claro' },
-                    { id: 'system', label: 'Automático' },
-                    { id: 'dark', label: 'Modo Oscuro' },
-                  ].map((theme) => (
-                    <button
-                      key={theme.id}
-                      type="button"
-                      onClick={() => handleThemeChange(theme.id as 'light' | 'system' | 'dark')}
-                      className={`flex flex-col items-center justify-center rounded-xl border p-3.5 text-center transition cursor-pointer ${
-                        themePreference === theme.id
-                          ? 'border-emerald-500 bg-emerald-50 font-semibold text-emerald-800 ring-1 ring-emerald-500'
-                          : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
-                      }`}
-                    >
-                      <span className="text-xs font-semibold">{theme.label}</span>
-                    </button>
-                  ))}
-                </div>
-                <p className="mt-3 text-[11px] text-slate-400">
-                  Tema en uso: <span className="font-semibold text-slate-600">{resolvedDark ? 'Modo oscuro' : 'Modo claro'}</span>
-                  {themePreference === 'system' ? ' · siguiendo tu sistema' : ' · guardado en este equipo'}
-                </p>
-              </div>
+                <CardContent className="flex flex-col gap-3">
+                  <Tabs value={themePreference} onValueChange={(value) => handleThemeChange(value as 'light' | 'system' | 'dark')}>
+                    <TabsList className="w-full" aria-label="Tema">
+                      <TabsTrigger value="light">Modo claro</TabsTrigger>
+                      <TabsTrigger value="system">Automático</TabsTrigger>
+                      <TabsTrigger value="dark">Modo oscuro</TabsTrigger>
+                    </TabsList>
+                  </Tabs>
+                  <p className="text-xs text-muted-foreground">
+                    Tema en uso: <span className="font-medium text-foreground">{resolvedDark ? 'Modo oscuro' : 'Modo claro'}</span>
+                    {themePreference === 'system' ? ' · siguiendo tu sistema' : ' · guardado en este equipo'}
+                  </p>
+                </CardContent>
+              </Card>
 
               {/* Botones de acción */}
-              <div className="flex items-center justify-end gap-3 pt-2 pb-6">
-                <button
-                  type="button"
-                  onClick={() => goToSection('feed')}
-                  className="rounded-xl px-4 py-2.5 text-sm font-semibold text-slate-600 hover:bg-slate-200/60 transition cursor-pointer"
-                >
+              <div className="flex items-center justify-end gap-2 pt-2 pb-6">
+                <Button type="button" variant="outline" size="lg" onClick={handleCancelSettings}>
                   Cancelar
-                </button>
-                <button
-                  type="button"
-                  disabled={!!nameError}
-                  onClick={() => {
-                    setSavedSuccess(true)
-                    setTimeout(() => setSavedSuccess(false), 3000)
-                  }}
-                  className="flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm hover:bg-emerald-700 transition cursor-pointer disabled:cursor-not-allowed disabled:opacity-50 disabled:hover:bg-emerald-600"
-                >
-                  <Save size={16} />
-                  Guardar ajustes
-                </button>
+                </Button>
+                <Button type="button" size="lg" disabled={!!nameError} onClick={handleSaveSettings}>
+                  <Save /> Guardar ajustes
+                </Button>
               </div>
             </div>
           </section>
         ) : (
-          <section id={isCareersView ? 'categories' : 'feed'} className="min-w-0">
+          <section id={isCareersView ? 'categories' : isNoticesTab ? 'notices' : 'feed'} className="min-w-0">
           {isCareersView ? (
             <div className="mb-5">
-              <p className="text-sm font-medium text-emerald-600">Carreras</p>
-              <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-                Explora por carrera
-              </h1>
-              <p className="mt-1 text-sm text-slate-500">
+              <p className="text-sm font-medium text-primary">Carreras</p>
+              <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">Explora por carrera</h1>
+              <p className="mt-1 text-sm text-muted-foreground">
                 Selecciona una o varias categorías para combinar sus hilos.
               </p>
 
-              <div className="mt-4 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-                <div className="mb-3 flex items-center justify-between">
-                  <span id="careers-filter-label" className="text-xs font-bold uppercase tracking-wider text-slate-400">
-                    Explorar
-                  </span>
+              <Card size="sm" className="mt-4">
+                <CardHeader>
+                  <CardDescription id="careers-filter-label" className="text-xs font-medium">Explorar</CardDescription>
                   {selectedCategories.length > 0 && (
-                    <button
-                      onClick={() => setSelectedCategories([])}
-                      className="flex items-center gap-1 text-[11px] font-semibold text-emerald-700 hover:underline cursor-pointer"
-                    >
-                      <X size={13} /> Limpiar filtros ({selectedCategories.length})
-                    </button>
+                    <CardAction>
+                      <Button variant="link" size="xs" className="px-0" onClick={() => setSelectedCategories([])}>
+                        <X /> Limpiar filtros ({selectedCategories.length})
+                      </Button>
+                    </CardAction>
                   )}
-                </div>
-
-                <div role="group" aria-labelledby="careers-filter-label" className="flex flex-wrap gap-2">
-                  <button
-                    onClick={() => setSelectedCategories([])}
-                    aria-pressed={selectedCategories.length === 0}
-                    className={`rounded-full border px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${
-                      selectedCategories.length === 0
-                        ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                        : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
-                    }`}
-                  >
-                    Todas
-                  </button>
-                  {initialCategories.map((category) => {
-                    const selected = selectedCategories.includes(category)
-                    const count = threads.filter((t) => t.category === category).length
-                    return (
-                      <button
-                        key={category}
-                        onClick={() => toggleCategory(category)}
-                        aria-pressed={selected}
-                        className={`flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-semibold transition cursor-pointer ${
-                          selected
-                            ? 'border-emerald-500 bg-emerald-50 text-emerald-700'
-                            : 'border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100'
-                        }`}
-                      >
-                        {selected
-                          ? <Check size={13} className="text-emerald-600" />
-                          : <span className={`size-2 rounded-full ${categoryDot[category]}`} />}
-                        {category}
-                        <span className={`tabular-nums ${selected ? 'text-emerald-600' : 'text-slate-400'}`}>{count}</span>
-                      </button>
-                    )
-                  })}
-                </div>
-
-                <p className="mt-3 text-[11px] text-slate-400" aria-live="polite">
-                  {filteredThreads.length} {filteredThreads.length === 1 ? 'hilo' : 'hilos'} ·{' '}
-                  {selectedCategories.length === 0 ? 'todas las categorías' : selectedCategories.join(', ')}
-                </p>
-              </div>
+                </CardHeader>
+                <CardContent className="flex flex-col gap-3">
+                  <div role="group" aria-labelledby="careers-filter-label" className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedCategories([])}
+                      aria-pressed={selectedCategories.length === 0}
+                      className={cn('rounded-full', selectedCategories.length === 0 && 'border-primary bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary')}
+                    >
+                      Todas
+                    </Button>
+                    {initialCategories.map((category) => {
+                      const selected = selectedCategories.includes(category)
+                      const count = threads.filter((t) => t.category === category).length
+                      return (
+                        <Button
+                          key={category}
+                          variant="outline"
+                          size="sm"
+                          onClick={() => toggleCategory(category)}
+                          aria-pressed={selected}
+                          className={cn('rounded-full', selected && 'border-primary bg-primary/10 text-primary hover:bg-primary/15 hover:text-primary')}
+                        >
+                          {selected ? <Check /> : <span className={cn('size-2 rounded-full', categoryDot[category])} />}
+                          {category}
+                          <span className={cn('tabular-nums', selected ? 'text-primary' : 'text-muted-foreground')}>{count}</span>
+                        </Button>
+                      )
+                    })}
+                  </div>
+                  <p className="text-xs text-muted-foreground" aria-live="polite">
+                    {filteredThreads.length} {filteredThreads.length === 1 ? 'hilo' : 'hilos'} ·{' '}
+                    {selectedCategories.length === 0 ? 'todas las categorías' : selectedCategories.join(', ')}
+                  </p>
+                </CardContent>
+              </Card>
             </div>
           ) : (
           <>
-          <div className="mb-5 flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3">
+          <div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <p className="text-sm font-medium text-emerald-600">Miércoles, 12 de marzo</p>
-              <h1 className="mt-1 text-2xl font-bold tracking-tight text-slate-900 sm:text-3xl">
-                Tu comunidad, al día.
-              </h1>
-              <p className="mt-1 text-sm text-slate-500">
-                Descubre lo que está pasando en UTOM.
-              </p>
+              <p className="text-sm font-medium text-primary">Miércoles, 12 de marzo</p>
+              <h1 className="mt-1 text-2xl font-semibold tracking-tight sm:text-3xl">Tu comunidad, al día.</h1>
+              <p className="mt-1 text-sm text-muted-foreground">Descubre lo que está pasando en UTOM.</p>
             </div>
             <div className="flex items-center gap-2">
-              <span className="text-xs text-slate-500">Conectado:</span>
-              <span className="rounded-full bg-emerald-100 px-2.5 py-0.5 text-xs font-semibold text-emerald-800">
-                {user.career}
-              </span>
+              <span className="text-xs text-muted-foreground">Conectado:</span>
+              <Badge variant="secondary">{user.career}</Badge>
             </div>
           </div>
 
-          {/* Tabs */}
-          <div className="mb-5 flex gap-1 overflow-x-auto border-b border-slate-200">
-            {['Para ti', 'Más recientes', 'En tendencia', 'Avisos del campus'].map((tab) => (
-              <button
-                key={tab}
-                onClick={() => setActiveTab(tab)}
-                className={`whitespace-nowrap border-b-2 px-3 pb-3 text-sm font-semibold transition cursor-pointer ${
-                  activeTab === tab
-                    ? 'border-emerald-600 text-emerald-700'
-                    : 'border-transparent text-slate-400 hover:text-slate-700'
-                }`}
-              >
-                {tab}
-                {tab === 'Avisos del campus' && (
-                  <span className="ml-2 rounded-full bg-amber-100 px-1.5 py-0.5 text-[10px] text-amber-700 font-bold">
-                    3
-                  </span>
-                )}
-              </button>
-            ))}
-          </div>
+          {/* Vista filtrada abierta desde la barra lateral o la navbar */}
+          {activeTab !== 'Para ti' && (
+            <div className="mb-5 flex items-center justify-between gap-3 rounded-lg border bg-card px-4 py-2.5">
+              <span className="text-sm font-medium">{feedModeLabel[activeTab]}</span>
+              <Button variant="link" size="sm" className="px-0" onClick={() => selectTab('Para ti')}>
+                <ArrowLeft /> Ver todo el feed
+              </Button>
+            </div>
+          )}
           </>
           )}
 
-          {/* Quick Create Thread Bar */}
+          {isNoticesTab ? (
+          /* Avisos oficiales del campus */
+          <div className="flex flex-col gap-3">
+            {campusNotices.map((notice) => {
+              const expanded = openNotice === notice.id
+              return (
+                <Card key={notice.id} className="gap-0 py-0">
+                  <button
+                    type="button"
+                    onClick={() => setOpenNotice(expanded ? null : notice.id)}
+                    aria-expanded={expanded}
+                    aria-controls={`notice-body-${notice.id}`}
+                    className="flex w-full cursor-pointer items-start gap-3 p-4 text-left outline-none transition-colors hover:bg-accent/40 focus-visible:bg-accent/40"
+                  >
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600 dark:bg-amber-500/10 dark:text-amber-400">
+                      <Megaphone className="size-[18px]" />
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <h2 className="text-sm font-medium sm:text-base">{notice.title}</h2>
+                        <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">OFICIAL</Badge>
+                      </div>
+                      <span className="mt-0.5 block text-xs text-muted-foreground">{notice.date}</span>
+                    </div>
+                    <ChevronDown className={cn('mt-1 size-[18px] shrink-0 text-muted-foreground transition-transform', expanded && 'rotate-180')} />
+                  </button>
+                  {expanded && (
+                    <CardContent id={`notice-body-${notice.id}`} className="border-t py-4 leading-6 text-muted-foreground">
+                      {notice.body}
+                    </CardContent>
+                  )}
+                </Card>
+              )
+            })}
+          </div>
+          ) : (
+          <>
+          {/* Búsqueda */}
+          <div className="relative mb-3">
+            <Label htmlFor="thread-search" className="sr-only">Buscar hilos</Label>
+            <Search className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              id="thread-search"
+              type="search"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Buscar por título, autor, categoría o #etiqueta..."
+              className="h-10 bg-card pr-10 pl-9 shadow-xs"
+            />
+            {searchQuery && (
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                onClick={() => setSearchQuery('')}
+                className="absolute top-1/2 right-2 -translate-y-1/2"
+                aria-label="Limpiar búsqueda"
+              >
+                <X />
+              </Button>
+            )}
+          </div>
+
+          {/* Barra rápida para crear hilo */}
           <button
+            type="button"
             onClick={() => setModal(true)}
-            className="mb-5 flex w-full items-center gap-3 rounded-2xl border border-slate-200 bg-white p-3.5 text-left shadow-sm transition hover:border-emerald-300 hover:shadow cursor-pointer"
+            className="mb-5 flex w-full cursor-pointer items-center gap-3 rounded-xl bg-card p-3 text-left ring-1 ring-foreground/10 outline-none transition hover:ring-primary/40 focus-visible:ring-3 focus-visible:ring-ring/50"
           >
-            <div className="flex size-9 items-center justify-center rounded-full bg-emerald-100 text-xs font-bold text-emerald-800">
-              {user.initials}
-            </div>
-            <span className="text-sm text-slate-400">
-              Hola {user.name.split(' ')[0]}, ¿qué quieres compartir con la comunidad?
+            <Avatar>
+              <AvatarFallback className="bg-primary/15 text-xs font-semibold text-primary">{displayInitials}</AvatarFallback>
+            </Avatar>
+            <span className="text-sm text-muted-foreground">
+              Hola {displayName.split(' ')[0]}, ¿qué quieres compartir con la comunidad?
             </span>
-            <span className="ml-auto hidden rounded-xl bg-emerald-50 px-3 py-1.5 text-xs font-semibold text-emerald-700 sm:block">
+            <span className={cn(buttonVariants({ variant: 'secondary', size: 'sm' }), 'ml-auto hidden sm:inline-flex')}>
               Crear hilo
             </span>
           </button>
 
-          {/* Threads List */}
+          {/* Lista de hilos */}
           <div className="flex flex-col gap-4">
             {filteredThreads.map((thread) => (
-              <article
-                key={thread.id}
-                className="rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition duration-200"
-              >
-                <div className="p-4 sm:p-5">
+              <Card key={thread.id} id={`thread-${thread.id}`} className="scroll-mt-24 transition-shadow hover:shadow-sm">
+                <CardHeader>
                   <div className="flex items-start gap-3">
-                    <div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-slate-100 text-xs font-bold text-slate-700">
-                      {thread.initials}
-                    </div>
+                    <Avatar size="lg">
+                      <AvatarFallback className="text-xs font-semibold text-foreground">{thread.initials}</AvatarFallback>
+                    </Avatar>
                     <div className="min-w-0 flex-1">
                       <div className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
-                        <span className="text-sm font-bold text-slate-900">{thread.author}</span>
-                        <span className={`rounded-md px-1.5 py-0.5 text-[10px] font-bold ${thread.accent}`}>
-                          {thread.career}
-                        </span>
-                        <span className="text-xs text-slate-400">· {thread.time}</span>
+                        <span className="text-sm font-medium">{thread.author}</span>
+                        <Badge variant="secondary" className={cn('rounded-md', thread.accent)}>{thread.career}</Badge>
+                        <span className="text-xs text-muted-foreground">· {thread.time}</span>
                       </div>
-                      <div className="mt-0.5 text-xs text-slate-400">Estudiante UTOM</div>
+                      <div className="mt-0.5 text-xs text-muted-foreground">Estudiante UTOM</div>
                     </div>
-                    <button className="rounded-md p-1 text-slate-400 hover:bg-slate-100" aria-label="Más opciones">
-                      <MoreHorizontal size={18} />
-                    </button>
                   </div>
+                  <CardAction>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger render={<Button variant="ghost" size="icon-sm" aria-label="Más opciones" />}>
+                        <MoreHorizontal />
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end" className="w-48">
+                        <DropdownMenuItem onClick={() => copyThreadLink(thread.id)}>
+                          <Link2 /> Copiar enlace
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => toggleSave(thread.id)}>
+                          <Bookmark /> {saved.includes(thread.id) ? 'Quitar de guardados' : 'Guardar hilo'}
+                        </DropdownMenuItem>
+                        {(thread.mine || thread.author === user.name) && (
+                          <>
+                            <DropdownMenuSeparator />
+                            <DropdownMenuItem variant="destructive" onClick={() => deleteThread(thread)}>
+                              <Trash2 /> Eliminar hilo
+                            </DropdownMenuItem>
+                          </>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </CardAction>
+                </CardHeader>
 
-                  <div className="mt-4">
-                    <div className="mb-2 flex items-center gap-2">
-                      <span className="rounded-md bg-slate-100 px-2 py-1 text-[11px] font-semibold text-slate-500">
-                        {thread.category}
+                <CardContent>
+                  <div className="mb-2 flex items-center gap-2">
+                    <Badge variant="outline" className="rounded-md text-muted-foreground">{thread.category}</Badge>
+                    {threadScore(thread) >= TRENDING_SCORE && (
+                      <span className="flex items-center gap-1 text-xs font-medium text-amber-600 dark:text-amber-400">
+                        <TrendingUp className="size-3.5" /> En tendencia
                       </span>
-                      {thread.id === 2 && (
-                        <span className="flex items-center gap-1 text-[11px] font-medium text-amber-600">
-                          <TrendingUp size={13} /> En tendencia
-                        </span>
-                      )}
-                    </div>
-                    <h2 className="text-base font-bold leading-snug text-slate-900 sm:text-lg">
-                      {thread.title}
-                    </h2>
-                    <p className="mt-2 text-sm leading-6 text-slate-600">
-                      {thread.body}
-                    </p>
-
-                    {thread.id === 3 && (
-                      <div className="mt-3 flex items-center gap-3 rounded-xl border border-slate-200 bg-slate-50 p-3">
-                        <div className="flex size-9 items-center justify-center rounded-lg bg-violet-100 text-violet-600">
-                          <FileText size={18} />
-                        </div>
-                        <div>
-                          <div className="text-sm font-semibold">Guía_microbiología.pdf</div>
-                          <div className="text-xs text-slate-400">2.4 MB · Documento de estudio</div>
-                        </div>
-                        <button className="ml-auto text-slate-400 hover:text-emerald-600 p-1">
-                          <Upload size={17} />
-                        </button>
-                      </div>
                     )}
                   </div>
+                  <h2 className="text-base leading-snug font-semibold sm:text-lg">{thread.title}</h2>
+                  <p className="mt-2 text-sm leading-6 whitespace-pre-line text-muted-foreground">{thread.body}</p>
 
-                  {/* Actions bar */}
-                  <div className="mt-4 flex items-center gap-1 border-t border-slate-100 pt-3">
-                    <div className="flex items-center rounded-xl bg-slate-50 border border-slate-200/60">
-                      <button
-                        onClick={() => toggleVote(thread.id, 1)}
-                        className={`rounded-l-xl p-2 ${
-                          votes[thread.id] === 1 ? 'text-emerald-600 bg-emerald-50' : 'text-slate-400'
-                        } hover:bg-emerald-50 transition cursor-pointer`}
-                        aria-label="Votar a favor"
-                      >
-                        <ThumbsUp size={16} />
-                      </button>
-                      <span className="min-w-7 text-center text-xs font-bold text-slate-600">
-                        {thread.score + (votes[thread.id] || 0)}
-                      </span>
-                      <button
-                        onClick={() => toggleVote(thread.id, -1)}
-                        className={`rounded-r-xl p-2 ${
-                          votes[thread.id] === -1 ? 'text-rose-500 bg-rose-50' : 'text-slate-400'
-                        } hover:bg-rose-50 transition cursor-pointer`}
-                        aria-label="Votar en contra"
-                      >
-                        <ThumbsDown size={16} />
-                      </button>
-                    </div>
+                  {thread.image && (
+                    <img
+                      src={thread.image.url}
+                      alt={thread.image.name}
+                      className="mt-3 max-h-80 w-full rounded-lg border object-cover"
+                    />
+                  )}
 
-                    <button
-                      onClick={() => setOpenThread(openThread === thread.id ? null : thread.id)}
-                      className="flex items-center gap-2 rounded-xl px-3 py-2 text-xs font-semibold text-slate-500 hover:bg-slate-50 transition cursor-pointer"
-                    >
-                      <MessageCircle size={16} /> {thread.replies} respuestas
-                    </button>
-
-                    <button
-                      onClick={() => toggleSave(thread.id)}
-                      className={`ml-auto rounded-xl p-2 ${
-                        saved.includes(thread.id) ? 'text-emerald-600 bg-emerald-50' : 'text-slate-400'
-                      } hover:bg-slate-50 transition cursor-pointer`}
-                      aria-label="Guardar hilo"
-                    >
-                      <Bookmark size={17} fill={saved.includes(thread.id) ? 'currentColor' : 'none'} />
-                    </button>
-
-                    <button
-                      className="rounded-xl p-2 text-slate-400 hover:bg-slate-50 transition cursor-pointer"
-                      aria-label="Compartir"
-                    >
-                      <Share2 size={17} />
-                    </button>
-                  </div>
-                </div>
-
-                {/* Comments dropdown accordion */}
-                {openThread === thread.id && (
-                  <div className="border-t border-slate-100 bg-slate-50/70 px-4 py-4 sm:px-5 rounded-b-2xl">
-                    <div className="flex flex-col gap-3">
-                      {thread.comments.map((comment, idx) => (
-                        <div key={idx} className="flex gap-3">
-                          <div className="relative pl-2">
-                            <div className="absolute -left-3 top-0 h-full w-px bg-slate-200" />
-                            <div className="flex size-8 items-center justify-center rounded-full bg-white text-[10px] font-bold text-slate-600 ring-1 ring-slate-200">
-                              {comment.initials}
-                            </div>
-                          </div>
-                          <div className="flex-1 rounded-xl bg-white p-3 ring-1 ring-slate-100 shadow-xs">
-                            <div className="text-xs font-bold text-slate-800">{comment.author}</div>
-                            <p className="mt-1 text-xs leading-5 text-slate-600">{comment.text}</p>
-                            <button className="mt-2 text-[11px] font-semibold text-emerald-700 hover:underline">
-                              Responder
-                            </button>
-                          </div>
-                        </div>
+                  {thread.tags && (
+                    <div className="mt-3 flex flex-wrap gap-1.5">
+                      {thread.tags.map((tag) => (
+                        <Button key={tag} variant="secondary" size="xs" className="rounded-full text-primary" onClick={() => searchFor(tag)}>
+                          #{tag}
+                        </Button>
                       ))}
                     </div>
+                  )}
 
-                    <div className="mt-4 flex items-center gap-2">
-                      <input
-                        value={newCommentText[thread.id] || ''}
-                        onChange={(e) =>
-                          setNewCommentText({ ...newCommentText, [thread.id]: e.target.value })
-                        }
-                        onKeyDown={(e) => {
-                          if (e.key === 'Enter') handleAddComment(thread.id)
-                        }}
-                        className="h-9 min-w-0 flex-1 rounded-xl border border-slate-200 bg-white px-3 text-xs outline-none focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                        placeholder="Responder a este hilo..."
-                      />
-                      <button
-                        onClick={() => handleAddComment(thread.id)}
-                        className="flex size-9 items-center justify-center rounded-xl bg-emerald-600 text-white hover:bg-emerald-700 transition cursor-pointer"
-                        aria-label="Enviar respuesta"
+                  {thread.attachment && (
+                    <div className="mt-3 flex items-center gap-3 rounded-lg border bg-muted/40 p-3">
+                      <div className="flex size-9 items-center justify-center rounded-lg bg-violet-100 text-violet-600 dark:bg-violet-500/15 dark:text-violet-400">
+                        <FileText className="size-[18px]" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-medium">{thread.attachment.name}</div>
+                        <div className="text-xs text-muted-foreground">{thread.attachment.size} · Documento de estudio</div>
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        className="ml-auto"
+                        onClick={() => showToast('Archivo de demostración: aún no hay un documento real para descargar')}
+                        aria-label={`Descargar ${thread.attachment.name}`}
                       >
-                        <Send size={15} />
-                      </button>
+                        <Download />
+                      </Button>
                     </div>
+                  )}
+                </CardContent>
+
+                <CardFooter className="flex-col items-stretch gap-0 bg-transparent p-0">
+                  {/* Barra de acciones */}
+                  <div className="flex items-center gap-1 px-4 py-2">
+                    <div className="flex items-center rounded-lg border bg-muted/40">
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => toggleVote(thread.id, 1)}
+                        aria-pressed={votes[thread.id] === 1}
+                        className={cn('rounded-r-none', votes[thread.id] === 1 ? 'bg-primary/10 text-primary' : 'text-muted-foreground')}
+                        aria-label="Votar a favor"
+                      >
+                        <ThumbsUp />
+                      </Button>
+                      <span className="min-w-7 text-center text-xs font-medium tabular-nums">{threadScore(thread)}</span>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
+                        onClick={() => toggleVote(thread.id, -1)}
+                        aria-pressed={votes[thread.id] === -1}
+                        className={cn('rounded-l-none', votes[thread.id] === -1 ? 'bg-destructive/10 text-destructive' : 'text-muted-foreground')}
+                        aria-label="Votar en contra"
+                      >
+                        <ThumbsDown />
+                      </Button>
+                    </div>
+
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="text-muted-foreground"
+                      onClick={() => setOpenThread(openThread === thread.id ? null : thread.id)}
+                      aria-expanded={openThread === thread.id}
+                    >
+                      <MessageCircle /> {thread.replies} respuestas
+                    </Button>
+
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => toggleSave(thread.id)}
+                      className={cn('ml-auto', saved.includes(thread.id) ? 'bg-primary/10 text-primary' : 'text-muted-foreground')}
+                      aria-label={saved.includes(thread.id) ? 'Quitar de guardados' : 'Guardar hilo'}
+                      aria-pressed={saved.includes(thread.id)}
+                    >
+                      <Bookmark fill={saved.includes(thread.id) ? 'currentColor' : 'none'} />
+                    </Button>
+                    <Button variant="ghost" size="icon-sm" className="text-muted-foreground" onClick={() => shareThread(thread)} aria-label="Compartir">
+                      <Share2 />
+                    </Button>
                   </div>
-                )}
-              </article>
+
+                  {/* Comentarios */}
+                  {openThread === thread.id && (
+                    <div className="border-t bg-muted/40 px-4 py-4">
+                      <div className="flex flex-col gap-3">
+                        {thread.comments.map((comment, idx) => (
+                          <div key={idx} className="flex gap-3">
+                            <Avatar>
+                              <AvatarFallback className="bg-card text-[10px] font-semibold">{comment.initials}</AvatarFallback>
+                            </Avatar>
+                            <div className="flex-1 rounded-lg bg-card p-3 ring-1 ring-foreground/10">
+                              <div className="text-xs font-medium">{comment.author}</div>
+                              <p className="mt-1 text-xs leading-5 text-muted-foreground">{comment.text}</p>
+                              <Button variant="link" size="xs" className="mt-1 h-auto px-0" onClick={() => replyToComment(thread.id, comment.author)}>
+                                Responder
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div className="mt-4 flex items-center gap-2">
+                        <Label htmlFor={`reply-input-${thread.id}`} className="sr-only">Responder a este hilo</Label>
+                        <Input
+                          id={`reply-input-${thread.id}`}
+                          value={newCommentText[thread.id] || ''}
+                          onChange={(e) => setNewCommentText({ ...newCommentText, [thread.id]: e.target.value })}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleAddComment(thread.id)
+                          }}
+                          className="bg-card"
+                          placeholder="Responder a este hilo..."
+                        />
+                        <Button size="icon" onClick={() => handleAddComment(thread.id)} aria-label="Enviar respuesta">
+                          <Send />
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </CardFooter>
+              </Card>
             ))}
 
             {filteredThreads.length === 0 && (
-              <div className="rounded-2xl border border-slate-200 bg-white p-12 text-center">
-                <Search size={28} className="mx-auto text-slate-300 mb-2" />
-                <p className="font-bold text-slate-700">No se encontraron hilos</p>
-                <p className="text-xs text-slate-400 mt-1">
-                  {isCareersView && selectedCategories.length > 0
-                    ? 'Aún no hay hilos en las categorías seleccionadas.'
-                    : 'Intenta buscar con otros términos o crea una nueva publicación.'}
-                </p>
-                {isCareersView && selectedCategories.length > 0 && (
-                  <button
-                    onClick={() => setSelectedCategories([])}
-                    className="mt-3 text-xs font-semibold text-emerald-700 hover:underline cursor-pointer"
-                  >
-                    Ver todas las categorías
-                  </button>
-                )}
-              </div>
+              <Card>
+                <CardContent className="flex flex-col items-center py-8 text-center">
+                  <Search className="mb-2 size-7 text-muted-foreground/60" />
+                  <p className="font-medium">No se encontraron hilos</p>
+                  <p className="mt-1 text-xs text-muted-foreground">
+                    {searchQuery.trim()
+                      ? `Ningún hilo coincide con "${searchQuery.trim()}".`
+                      : isCareersView && selectedCategories.length > 0
+                        ? 'Aún no hay hilos en las categorías seleccionadas.'
+                        : !isCareersView && activeTab === 'Mis guardados'
+                          ? 'Usa el ícono de marcador en un hilo para guardarlo aquí.'
+                          : 'Crea una nueva publicación para iniciar la conversación.'}
+                  </p>
+                  {searchQuery.trim() ? (
+                    <Button variant="link" size="sm" className="mt-2" onClick={() => setSearchQuery('')}>
+                      Limpiar búsqueda
+                    </Button>
+                  ) : isCareersView && selectedCategories.length > 0 ? (
+                    <Button variant="link" size="sm" className="mt-2" onClick={() => setSelectedCategories([])}>
+                      Ver todas las categorías
+                    </Button>
+                  ) : null}
+                </CardContent>
+              </Card>
             )}
           </div>
+          </>
+          )}
         </section>
       )}
 
-        {/* Right Sidebar: Notices & Trends */}
+        {/* Barra lateral derecha: avisos y temas */}
         <aside className="hidden xl:block">
           <div className="sticky top-24 flex flex-col gap-4">
-            
-            <div id="notices" className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="mb-3 flex items-center justify-between">
-                <h2 className="text-sm font-bold text-slate-900">Avisos importantes</h2>
-                <span className="rounded-full bg-amber-100 px-2 py-0.5 text-[10px] font-bold text-amber-700">
-                  OFICIAL
-                </span>
-              </div>
-              <div className="flex flex-col gap-3">
-                {['Periodo de reinscripciones', 'Becas de movilidad 2025', 'Cierre temporal de biblioteca'].map(
-                  (notice, i) => (
-                    <button key={notice} className="group flex items-start gap-2 text-left cursor-pointer">
-                      <span
-                        className={`mt-1.5 size-1.5 shrink-0 rounded-full ${
-                          i === 0 ? 'bg-amber-500' : 'bg-slate-300'
-                        }`}
-                      />
-                      <span className="text-xs font-medium leading-5 text-slate-600 group-hover:text-emerald-700 transition">
-                        {notice}
-                        <span className="block text-[10px] font-normal text-slate-400">
-                          {i === 0 ? 'Publicado hoy' : 'Hace 2 días'}
-                        </span>
-                      </span>
-                      <ChevronRight size={14} className="ml-auto mt-1 shrink-0 text-slate-300 group-hover:text-emerald-600" />
-                    </button>
-                  )
-                )}
-              </div>
-              <button className="mt-3 text-xs font-semibold text-emerald-700 hover:underline cursor-pointer">
-                Ver todos los avisos →
-              </button>
-            </div>
-
-            <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-              <div className="mb-3 flex items-center gap-2">
-                <TrendingUp size={17} className="text-emerald-600" />
-                <h2 className="text-sm font-bold text-slate-900">Temas populares</h2>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                {['#Inscripciones', '#Residencias', '#Hackathon', '#Cafetería', '#ServicioSocial'].map((tag) => (
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle>Avisos importantes</CardTitle>
+                <CardAction>
+                  <Badge className="bg-amber-100 text-amber-700 dark:bg-amber-500/15 dark:text-amber-400">OFICIAL</Badge>
+                </CardAction>
+              </CardHeader>
+              <CardContent className="flex flex-col gap-1">
+                {campusNotices.map((notice, i) => (
                   <button
-                    key={tag}
-                    className="rounded-full bg-slate-100 px-2.5 py-1.5 text-xs font-medium text-slate-600 hover:bg-emerald-50 hover:text-emerald-700 transition cursor-pointer"
+                    key={notice.id}
+                    type="button"
+                    onClick={() => openNoticeInFeed(notice.id)}
+                    className="group -mx-2 flex cursor-pointer items-start gap-2 rounded-md px-2 py-1.5 text-left outline-none transition-colors hover:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50"
                   >
-                    {tag}
+                    <span className={cn('mt-1.5 size-1.5 shrink-0 rounded-full', i === 0 ? 'bg-amber-500' : 'bg-muted-foreground/40')} />
+                    <span className="text-xs leading-5 font-medium">
+                      {notice.title}
+                      <span className="block text-[11px] font-normal text-muted-foreground">{notice.date}</span>
+                    </span>
+                    <ChevronRight className="mt-1 ml-auto size-3.5 shrink-0 text-muted-foreground/60 group-hover:text-primary" />
                   </button>
                 ))}
-              </div>
-            </div>
+                <Button variant="link" size="xs" className="mt-1 self-start px-0" onClick={() => openNoticeInFeed(null)}>
+                  Ver todos los avisos →
+                </Button>
+              </CardContent>
+            </Card>
+
+            <Card size="sm">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <TrendingUp className="size-4 text-primary" /> Temas populares
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-wrap gap-2">
+                {popularTags.map((tag) => (
+                  <Button key={tag} variant="secondary" size="xs" className="rounded-full" onClick={() => searchFor(tag)}>
+                    #{tag}
+                  </Button>
+                ))}
+              </CardContent>
+            </Card>
           </div>
         </aside>
       </main>
 
-      {/* Modal: Crear nuevo hilo */}
-      {modal && (
-        <div
-          className="fixed inset-0 z-30 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4"
-          role="dialog"
-          aria-modal="true"
-          aria-labelledby="modal-title"
-        >
-          <div className="max-h-[90vh] w-full max-w-lg overflow-auto rounded-2xl bg-white shadow-2xl border border-slate-100">
-            <div className="flex items-center justify-between border-b border-slate-100 p-5">
-              <div>
-                <h2 id="modal-title" className="text-lg font-bold text-slate-900">
-                  Crear nuevo hilo
-                </h2>
-                <p className="mt-1 text-xs text-slate-500">
-                  Publicando como: <span className="font-semibold text-emerald-700">{user.name}</span> ({user.career})
-                </p>
-              </div>
-              <button
-                onClick={() => setModal(false)}
-                className="rounded-lg p-2 text-slate-400 hover:bg-slate-100 cursor-pointer"
-                aria-label="Cerrar"
-              >
-                <X size={19} />
-              </button>
+      {/* Diálogo: Crear nuevo hilo */}
+      <Dialog open={modal} onOpenChange={(open) => setModal(open)}>
+        <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Crear nuevo hilo</DialogTitle>
+            <DialogDescription>
+              Publicando como <span className="font-medium text-primary">{displayName}</span> ({user.career})
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleAddThread} className="grid gap-4">
+            <div className="grid gap-2">
+              <Label htmlFor="new-thread-title">Título</Label>
+              <Input
+                id="new-thread-title"
+                required
+                value={newTitle}
+                onChange={(e) => setNewTitle(e.target.value)}
+                placeholder="¿De qué quieres hablar?"
+              />
             </div>
 
-            <form onSubmit={handleAddThread} className="flex flex-col gap-4 p-5">
-              <label className="text-sm font-semibold text-slate-800">
-                Título
-                <input
-                  required
-                  value={newTitle}
-                  onChange={(e) => setNewTitle(e.target.value)}
-                  className="mt-2 h-10 w-full rounded-xl border border-slate-200 px-3 text-sm outline-none transition focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                  placeholder="¿De qué quieres hablar?"
-                />
-              </label>
+            <div className="grid gap-2">
+              <Label htmlFor="new-thread-category">Categoría</Label>
+              <NativeSelect
+                id="new-thread-category"
+                value={newCategory}
+                onChange={(e) => setNewCategory(e.target.value)}
+                className="w-full"
+              >
+                {initialCategories.map((category) => (
+                  <NativeSelectOption key={category} value={category}>{category}</NativeSelectOption>
+                ))}
+              </NativeSelect>
+            </div>
 
-              <label className="text-sm font-semibold text-slate-800">
-                Categoría
-                <select
-                  value={newCategory}
-                  onChange={(e) => setNewCategory(e.target.value)}
-                  className="mt-2 h-10 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm font-normal outline-none transition focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
+            <div className="grid gap-2">
+              <Label htmlFor="new-thread-body">Cuerpo del hilo</Label>
+              <Textarea
+                id="new-thread-body"
+                required
+                value={newBody}
+                onChange={(e) => setNewBody(e.target.value)}
+                className="min-h-28 resize-none"
+                placeholder="Escribe tu publicación con detalles para que la comunidad te pueda ayudar..."
+              />
+            </div>
+
+            {newImage && (
+              <div className="relative">
+                <img
+                  src={newImage.url}
+                  alt={`Vista previa de ${newImage.name}`}
+                  className="max-h-48 w-full rounded-lg border object-cover"
+                />
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="icon-sm"
+                  onClick={removeNewImage}
+                  className="absolute top-2 right-2 shadow-sm"
+                  aria-label="Quitar imagen"
                 >
-                  {initialCategories.map((category) => (
-                    <option key={category} value={category}>{category}</option>
+                  <X />
+                </Button>
+              </div>
+            )}
+
+            {showTagInput && (
+              <div className="grid gap-2">
+                <Label htmlFor="new-thread-tag">
+                  Etiquetas <span className="font-normal text-muted-foreground">({newTags.length}/{TAGS_MAX})</span>
+                </Label>
+                <div className="flex min-h-8 flex-wrap items-center gap-1.5 rounded-lg border border-input px-2 py-1.5 transition-colors focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50 dark:bg-input/30">
+                  {newTags.map((tag) => (
+                    <Badge key={tag} variant="secondary" className="gap-0.5 pr-1">
+                      #{tag}
+                      <button
+                        type="button"
+                        onClick={() => setNewTags(newTags.filter((t) => t !== tag))}
+                        className="cursor-pointer rounded-full p-0.5 hover:text-destructive"
+                        aria-label={`Quitar etiqueta ${tag}`}
+                      >
+                        <X />
+                      </button>
+                    </Badge>
                   ))}
-                </select>
-              </label>
-
-              <label className="text-sm font-semibold text-slate-800">
-                Cuerpo del hilo
-                <textarea
-                  required
-                  value={newBody}
-                  onChange={(e) => setNewBody(e.target.value)}
-                  className="mt-2 min-h-28 w-full resize-none rounded-xl border border-slate-200 p-3 text-sm font-normal outline-none transition focus:border-emerald-500 focus:ring-1 focus:ring-emerald-500"
-                  placeholder="Escribe tu publicación con detalles para que la comunidad te pueda ayudar..."
-                />
-              </label>
-
-              <div className="flex items-center gap-2">
-                <button
-                  type="button"
-                  className="flex items-center gap-2 rounded-xl border border-dashed border-slate-300 px-3 py-2 text-xs font-semibold text-slate-500 hover:border-emerald-400 hover:text-emerald-600 transition"
-                >
-                  <ImagePlus size={16} /> Adjuntar imagen
-                </button>
-                <button
-                  type="button"
-                  className="flex items-center gap-2 rounded-xl border border-dashed border-slate-300 px-3 py-2 text-xs font-semibold text-slate-500 hover:border-emerald-400 hover:text-emerald-600 transition"
-                >
-                  <Hash size={16} /> Añadir etiquetas
-                </button>
+                  <input
+                    id="new-thread-tag"
+                    value={tagDraft}
+                    onChange={(e) => setTagDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' || e.key === ',') {
+                        e.preventDefault()
+                        addTag()
+                      } else if (e.key === 'Backspace' && !tagDraft && newTags.length) {
+                        setNewTags(newTags.slice(0, -1))
+                      }
+                    }}
+                    onBlur={addTag}
+                    className="min-w-24 flex-1 bg-transparent px-1 text-sm outline-none placeholder:text-muted-foreground"
+                    placeholder={newTags.length ? '' : 'Escribe y pulsa Enter'}
+                  />
+                </div>
               </div>
+            )}
 
-              <div className="mt-2 flex justify-end gap-2 border-t border-slate-100 pt-4">
-                <button
-                  type="button"
-                  onClick={() => setModal(false)}
-                  className="rounded-xl px-4 py-2 text-sm font-semibold text-slate-500 hover:bg-slate-100 cursor-pointer"
-                >
-                  Cancelar
-                </button>
-                <button
-                  type="submit"
-                  className="flex items-center gap-2 rounded-xl bg-emerald-600 px-4 py-2 text-sm font-semibold text-white hover:bg-emerald-700 shadow-sm cursor-pointer"
-                >
-                  <Send size={15} /> Publicar hilo
-                </button>
-              </div>
-            </form>
+            <div className="flex items-center gap-2">
+              <input ref={imageInputRef} type="file" accept="image/*" onChange={handleImageSelected} className="hidden" />
+              <Button type="button" variant="outline" size="sm" className="border-dashed" onClick={() => imageInputRef.current?.click()}>
+                <ImagePlus /> {newImage ? 'Cambiar imagen' : 'Adjuntar imagen'}
+              </Button>
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                aria-expanded={showTagInput}
+                className={cn('border-dashed', showTagInput && 'border-primary/60 text-primary')}
+                onClick={() => {
+                  setShowTagInput(true)
+                  requestAnimationFrame(() => document.getElementById('new-thread-tag')?.focus())
+                }}
+              >
+                <Hash /> Añadir etiquetas
+              </Button>
+            </div>
+
+            <DialogFooter>
+              <DialogClose render={<Button type="button" variant="outline" />}>Cancelar</DialogClose>
+              <Button type="submit">
+                <Send /> Publicar hilo
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Aviso flotante de confirmación */}
+      <div
+        role="status"
+        aria-live="polite"
+        className="pointer-events-none fixed inset-x-0 bottom-6 z-[60] flex justify-center px-4"
+      >
+        {toast && (
+          <div className="flex items-center gap-2 rounded-lg bg-popover px-4 py-3 text-sm font-medium text-popover-foreground shadow-lg ring-1 ring-foreground/10">
+            <Check className="size-4 text-primary" />
+            {toast}
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   )
 }
