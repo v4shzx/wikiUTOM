@@ -1372,7 +1372,6 @@ export default function ForumView({ user, onUserChange, onLogout }: ForumViewPro
                         required
                         value={confirmPassword}
                         onChange={(e) => setConfirmPassword(e.target.value)}
-                        onPaste={(e) => e.preventDefault()}
                         aria-invalid={confirmPassword && !passwordsMatch ? true : undefined}
                         aria-describedby="password-confirm-hint"
                         className={cn(passwordsMatch && 'border-primary/60')}
@@ -1386,7 +1385,7 @@ export default function ForumView({ user, onUserChange, onLogout }: ForumViewPro
                         )}
                       >
                         {!confirmPassword
-                          ? 'Escríbela de nuevo (no se permite pegar).'
+                          ? 'Escríbela de nuevo para confirmar.'
                           : passwordsMatch
                             ? <><Check /> Las contraseñas coinciden</>
                             : <><X /> Las contraseñas no coinciden</>}

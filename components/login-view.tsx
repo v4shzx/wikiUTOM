@@ -151,35 +151,21 @@ export default function LoginView({ onLogin }: LoginViewProps) {
 
               {/* Formulario */}
               <form onSubmit={handleLogin} className="grid gap-4">
-                <div className="grid gap-2">
-                  <Label htmlFor="login-email">Correo o matrícula</Label>
-                  <div className="relative">
-                    <Mail className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      id="login-email"
-                      type="text"
-                      value={email}
-                      onChange={(e) => setEmail(e.target.value)}
-                      placeholder="UTOM2413TIID o usuario@utom.edu.mx"
-                      className="h-10 pl-9"
-                      autoComplete="username"
-                    />
-                  </div>
+                <div className="relative">
+                  <Mail className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+                  <Input
+                    id="login-email"
+                    type="text"
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="Correo o matrícula"
+                    aria-label="Correo o matrícula"
+                    className="h-10 pl-9"
+                    autoComplete="username"
+                  />
                 </div>
 
-                <div className="grid gap-2">
-                  <div className="flex items-center justify-between">
-                    <Label htmlFor="login-password">Contraseña</Label>
-                    <Button
-                      type="button"
-                      variant="link"
-                      size="xs"
-                      className="h-auto px-0"
-                      onClick={() => setForgotModal(true)}
-                    >
-                      ¿Olvidaste tu contraseña?
-                    </Button>
-                  </div>
+                <div className="grid gap-1.5">
                   <div className="relative">
                     <Lock className="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
                     <Input
@@ -187,7 +173,8 @@ export default function LoginView({ onLogin }: LoginViewProps) {
                       type={showPassword ? 'text' : 'password'}
                       value={password}
                       onChange={(e) => setPassword(e.target.value)}
-                      placeholder="••••••••••••"
+                      placeholder="Contraseña"
+                      aria-label="Contraseña"
                       className="h-10 pr-10 pl-9"
                       autoComplete="current-password"
                     />
@@ -201,6 +188,17 @@ export default function LoginView({ onLogin }: LoginViewProps) {
                       aria-pressed={showPassword}
                     >
                       {showPassword ? <EyeOff /> : <Eye />}
+                    </Button>
+                  </div>
+                  <div className="flex justify-end">
+                    <Button
+                      type="button"
+                      variant="link"
+                      size="xs"
+                      className="h-auto px-0 text-xs"
+                      onClick={() => setForgotModal(true)}
+                    >
+                      ¿Olvidaste tu contraseña?
                     </Button>
                   </div>
                 </div>
